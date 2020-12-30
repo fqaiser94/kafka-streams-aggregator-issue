@@ -4,16 +4,12 @@ version := "0.1"
 
 scalaVersion := "2.13.4"
 
-val kafkaVersion = "2.7.0"
+val kafkaVersion = "2.6.0"
 val confluentVersion = "6.0.0"
 libraryDependencies ++= Seq(
   "org.apache.kafka" %% "kafka-streams-scala" % kafkaVersion,
   "io.confluent" % "kafka-streams-avro-serde" % confluentVersion,
-  "io.confluent" % "kafka-avro-serializer" % confluentVersion,
   "io.confluent" % "kafka-schema-registry-client" % confluentVersion,
-
-  "org.apache.logging.log4j" % "log4j-api" % "2.14.0",
-  "org.apache.logging.log4j" % "log4j-core" % "2.14.0",
 
   "org.apache.kafka" % "kafka-streams-test-utils" % kafkaVersion % Test,
   "org.scalatest" %% "scalatest" % "3.2.2" % Test
