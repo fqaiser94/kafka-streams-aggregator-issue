@@ -25,10 +25,10 @@ class TopologyFactoryTest extends AnyFunSuite with Matchers {
   val props = new Properties()
   props.put(StreamsConfig.APPLICATION_ID_CONFIG, "test")
   props.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, "dummy:1234")
-  val factory = TopologyFactory(inputTopicName, outputTopicName, schemaRegistryClient)
-  val testDriver = new TopologyTestDriver(factory.topology, props)
+  val factory: TopologyFactory = TopologyFactory(inputTopicName, outputTopicName, schemaRegistryClient)
 
   test("single input output") {
+    val testDriver = new TopologyTestDriver(factory.topology, props)
     val inputTopic = testDriver.createInputTopic(inputTopicName, factory.inputKeySerde.serializer, factory.inputValueSerde.serializer)
     val outputTopic = testDriver.createOutputTopic(outputTopicName, factory.outputKeySerde.deserializer(), factory.outputValueSerde.deserializer())
 
@@ -45,6 +45,7 @@ class TopologyFactoryTest extends AnyFunSuite with Matchers {
     )
 
     result should contain theSameElementsInOrderAs expected
+    testDriver.close()
   }
 
 }
