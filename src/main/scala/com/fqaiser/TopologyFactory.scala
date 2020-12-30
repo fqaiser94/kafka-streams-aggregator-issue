@@ -1,30 +1,29 @@
 package com.fqaiser
 
+import com.fqaiser.Serde.makeSerde
 import io.confluent.kafka.schemaregistry.client.SchemaRegistryClient
-import io.confluent.kafka.serializers.AbstractKafkaSchemaSerDeConfig
 import io.confluent.kafka.streams.serdes.avro.SpecificAvroSerde
+import org.apache.avro.specific.SpecificRecord
 import org.apache.kafka.streams.Topology
 import org.apache.kafka.streams.scala.StreamsBuilder
 import org.apache.kafka.streams.scala.kstream.{Consumed, Grouped, Materialized, Produced}
 
-import scala.jdk.CollectionConverters.MapHasAsJava
 
+case class TopologyFactory(
+  inputTopic: String,
+  outputTopic: String,
+  schemaRegistryUrl: String,
+  schemaRegistryClient: SchemaRegistryClient
+) {
 
-case class TopologyFactory(inputTopic: String, outputTopic: String, schemaRegistryClient: SchemaRegistryClient) {
+  private def serde[T <: SpecificRecord](isKey: Boolean): SpecificAvroSerde[T] =
+    makeSerde[T](schemaRegistryUrl, schemaRegistryClient, isKey)
 
-  val serdeProps = Map(
-   (AbstractKafkaSchemaSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG, "mock")
-  ).asJava
+  val inputKeySerde = serde[AnimalKey](isKey = true)
+  val inputValueSerde = serde[AnimalValue](isKey = false)
 
-  val inputKeySerde = new SpecificAvroSerde[AnimalKey](schemaRegistryClient)
-  inputKeySerde.configure(serdeProps, true)
-  val inputValueSerde = new SpecificAvroSerde[AnimalValue](schemaRegistryClient)
-  inputValueSerde.configure(serdeProps, true)
-
-  val outputKeySerde = new SpecificAvroSerde[ZooAnimalsKey](schemaRegistryClient)
-  outputKeySerde.configure(serdeProps, true)
-  val outputValueSerde = new SpecificAvroSerde[ZooAnimalsValue](schemaRegistryClient)
-  outputValueSerde.configure(serdeProps, true)
+  val outputKeySerde = serde[ZooAnimalsKey](isKey = true)
+  val outputValueSerde = serde[ZooAnimalsValue](isKey = false)
 
   def topology: Topology = {
     val streamsBuilder = new StreamsBuilder()

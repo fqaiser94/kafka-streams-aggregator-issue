@@ -25,7 +25,7 @@ class TopologyFactoryTest extends AnyFunSuite with Matchers {
   val props = new Properties()
   props.put(StreamsConfig.APPLICATION_ID_CONFIG, "test")
   props.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, "dummy:1234")
-  val factory: TopologyFactory = TopologyFactory(inputTopicName, outputTopicName, schemaRegistryClient)
+  val factory: TopologyFactory = TopologyFactory(inputTopicName, outputTopicName, "mockSchemaRegistryUrl", schemaRegistryClient)
 
   test("single input output") {
     val testDriver = new TopologyTestDriver(factory.topology, props)
