@@ -32,6 +32,8 @@ class TopologyFactoryTest extends AnyFunSuite with Matchers {
     val inputTopic = testDriver.createInputTopic(inputTopicName, factory.inputKeySerde.serializer, factory.inputValueSerde.serializer)
     val outputTopic = testDriver.createOutputTopic(outputTopicName, factory.outputKeySerde.deserializer(), factory.outputValueSerde.deserializer())
 
+    println(s"schemaRegistryClient.getAllSubjects: ${schemaRegistryClient.getAllSubjects}")
+
     val animalKey = AnimalKey(animalId)
     val animalValue = AnimalValue(zooId, amount)
     inputTopic.pipeInput(animalKey, animalValue)
@@ -44,6 +46,7 @@ class TopologyFactoryTest extends AnyFunSuite with Matchers {
       new KeyValue(zooAnimalsKey, zooAnimalsValue)
     )
 
+    println(result)
     result should contain theSameElementsInOrderAs expected
     testDriver.close()
   }
