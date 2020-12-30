@@ -1,0 +1,6 @@
+@namespace("com.fqaiser")
+protocol ZooAnimalsKeyProtocol {
+  record ZooAnimalsKey {
+    int zooId;
+  }
+}

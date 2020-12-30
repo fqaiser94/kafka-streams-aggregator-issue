@@ -1,0 +1,8 @@
+@namespace("com.fqaiser")
+protocol ZooAnimalsValueProtocol {
+  import idl "AnimalValue.avdl";
+
+  record ZooAnimalsValue {
+    array<AnimalValue> animalValues;
+  }
+}
