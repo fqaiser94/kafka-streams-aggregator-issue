@@ -33,8 +33,8 @@ case class TopologyFactory(
       .groupBy((k, v) => (ZooAnimalsKey(v.zooId), v))(Grouped.`with`(outputKeySerde, inputValueSerde))
       .aggregate(
         initializer = ZooAnimalsValue(List.empty))(
-        adder = (k, v, agg) => agg.copy(animalValues = agg.animalValues.appended(v)),
-        subtractor = (k, v, agg) => agg.copy(animalValues = agg.animalValues.dropWhile(_ == v)))(
+        adder = (k, v, agg) => agg.copy(animalValues = (agg.animalValues.toSet + v).toList),
+        subtractor = (k, v, agg) => agg.copy(animalValues = (agg.animalValues.toSet - v).toList))(
         Materialized.`with`(outputKeySerde, outputValueSerde))
 
     zooAnimals.toStream.to(outputTopic)(Produced.`with`(outputKeySerde, outputValueSerde))

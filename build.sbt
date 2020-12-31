@@ -1,4 +1,4 @@
-name := "kafka-streams-issues"
+name := "kafka-streams-aggregator-issue"
 
 version := "0.1"
 

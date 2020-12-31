@@ -49,6 +49,11 @@ class TopologyFactoryTest extends AnyFunSuite with Matchers {
     testDriver.close()
   }
 
+  // for both single and multiple animals:
+  // - test delete
+  // - test update
+  // - test "update" with no change
+
   test("multiple types of animals in a given zoo") {
     val testDriver = new TopologyTestDriver(factory.topology, props)
     val inputTopic = testDriver.createInputTopic(inputTopicName, factory.inputKeySerde.serializer, factory.inputValueSerde.serializer)
