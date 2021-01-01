@@ -1,8 +1,11 @@
 @namespace("com.fqaiser")
 protocol AnimalValueProtocol {
   record AnimalValue {
+    /** The id of the animal. */
     int animalId;
+    /** The id of the zoo the animal belongs to. */
     int zooId;
+    /** The maximum number of calories this animal can eat. */
     int maxCalories;
   }
 }

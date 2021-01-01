@@ -10,14 +10,17 @@ import scala.jdk.CollectionConverters.MapHasAsJava
 object Serde {
 
   def makeSerde[T <: SpecificRecord](
-    schemaRegistryUrl: String,
-    schemaRegistryClient: SchemaRegistryClient,
-    isKey: Boolean
+      schemaRegistryUrl: String,
+      schemaRegistryClient: SchemaRegistryClient,
+      isKey: Boolean
   ): SpecificAvroSerde[T] = {
 
     val serde = new SpecificAvroSerde[T](schemaRegistryClient)
     val serdeProps = Map(
-      (AbstractKafkaSchemaSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG, schemaRegistryUrl)
+      (
+        AbstractKafkaSchemaSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG,
+        schemaRegistryUrl
+      )
     ).asJava
     serde.configure(serdeProps, isKey)
     serde

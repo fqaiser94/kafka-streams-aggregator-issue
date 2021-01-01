@@ -5,8 +5,6 @@ import org.scalatest.matchers.should.Matchers
 
 class TopologyFactoryEmbeddedKafkaTest extends AnyFunSuite with Matchers {
 
-  test("") {
-
-  }
+  test("") {}
 
 }

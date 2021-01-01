@@ -1,7 +1,11 @@
 @namespace("com.fqaiser")
 protocol FoodValueProtocol {
   record FoodValue {
+    /** The id of the food parcel */
     int foodId;
+    /** The id of the zoo the food parcel is destined for. */
     int zooId;
+    /** The amount of calories in the food parcel. */
+    int calories;
   }
 }

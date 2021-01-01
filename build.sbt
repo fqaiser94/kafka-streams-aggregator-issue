@@ -18,3 +18,6 @@ libraryDependencies ++= Seq(
 resolvers += "Confluent" at "https://packages.confluent.io/maven/"
 
 sourceGenerators in Compile += (avroScalaGenerateSpecific in Compile).taskValue
+
+scalafmtOnCompile := true
+scalafmtTestOnCompile := true
