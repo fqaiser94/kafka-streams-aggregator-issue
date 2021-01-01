@@ -1,0 +1,6 @@
+@namespace("com.fqaiser")
+protocol FoodKeyProtocol {
+  record FoodKey {
+    int foodId;
+  }
+}

@@ -3,6 +3,6 @@ protocol AnimalValueProtocol {
   record AnimalValue {
     int animalId;
     int zooId;
-    int amount;
+    int maxCalories;
   }
 }

@@ -38,8 +38,8 @@ class TopologyFactoryTest extends AnyFeatureSpec with Matchers {
     props.put(StreamsConfig.APPLICATION_ID_CONFIG, "test")
     props.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, "dummy:1234")
 
-    val testDriver = new TopologyTestDriver(factory.topology, props)
-    val inputTopic = testDriver.createInputTopic(inputTopicName, factory.inputKeySerde.serializer, factory.inputValueSerde.serializer)
+    val testDriver = new TopologyTestDriver(factory.topology1, props)
+    val inputTopic = testDriver.createInputTopic(inputTopicName, factory.animalKeySerde.serializer, factory.animalValueSerde.serializer)
     val outputTopic = testDriver.createOutputTopic(outputTopicName, factory.outputKeySerde.deserializer(), factory.outputValueSerde.deserializer())
     try {
       testFunction(testDriver, inputTopic, outputTopic)
