@@ -1,23 +1,16 @@
 package com.fqaiser
 
-import java.util.Properties
 import io.confluent.kafka.schemaregistry.client.{MockSchemaRegistryClient, SchemaRegistryClient}
-import org.apache.kafka.streams.{
-  KeyValue,
-  StreamsConfig,
-  TestInputTopic,
-  TestOutputTopic,
-  TopologyTestDriver
-}
-import org.scalatest.Assertion
+import net.manub.embeddedkafka.schemaregistry.streams.EmbeddedKafkaStreams
+import org.apache.kafka.streams._
 import org.scalatest.compatible.Assertion
 import org.scalatest.featurespec.AnyFeatureSpec
-import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.matchers.should.Matchers
 
-import scala.jdk.CollectionConverters.CollectionHasAsScala
+import java.util.Properties
+import _root_.scala.jdk.CollectionConverters.CollectionHasAsScala
 
-class SimpleAggregatorTest extends AnyFeatureSpec with Matchers {
+class SimpleAggregatorTest extends AnyFeatureSpec with Matchers with EmbeddedKafkaStreams {
 
   // TODO: still need a test with embedded kafka to go through adder/subtractor behaviour
 
