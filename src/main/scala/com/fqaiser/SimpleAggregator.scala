@@ -6,12 +6,7 @@ import io.confluent.kafka.streams.serdes.avro.SpecificAvroSerde
 import org.apache.avro.specific.SpecificRecord
 import org.apache.kafka.streams.Topology
 import org.apache.kafka.streams.scala.StreamsBuilder
-import org.apache.kafka.streams.scala.kstream.{
-  Consumed,
-  Grouped,
-  Materialized,
-  Produced
-}
+import org.apache.kafka.streams.scala.kstream.{Consumed, Grouped, Materialized, Produced}
 
 case class SimpleAggregator(
     animalsTopic: String,
@@ -46,10 +41,8 @@ case class SimpleAggregator(
         Grouped.`with`(outputKeySerde, animalValueSerde)
       )
       .aggregate(initializer = ZooAnimalsValue(List.empty))(
-        adder = (k, v, agg) =>
-          agg.copy(animalValues = (agg.animalValues.toSet + v).toList),
-        subtractor = (k, v, agg) =>
-          agg.copy(animalValues = (agg.animalValues.toSet - v).toList)
+        adder = (k, v, agg) => agg.copy(animalValues = (agg.animalValues.toSet + v).toList),
+        subtractor = (k, v, agg) => agg.copy(animalValues = (agg.animalValues.toSet - v).toList)
       )(Materialized.`with`(outputKeySerde, outputValueSerde))
 
     zooAnimals.toStream.to(outputTopic)(
