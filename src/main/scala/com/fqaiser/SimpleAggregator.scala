@@ -1,6 +1,6 @@
 package com.fqaiser
 
-import com.fqaiser.Serde.makeSerde
+import com.fqaiser.SerdeUtils.specificRecordSerde
 import io.confluent.kafka.schemaregistry.client.SchemaRegistryClient
 import io.confluent.kafka.streams.serdes.avro.SpecificAvroSerde
 import org.apache.avro.specific.SpecificRecord
@@ -16,7 +16,7 @@ case class SimpleAggregator(
 ) {
 
   private def serde[T <: SpecificRecord](isKey: Boolean): SpecificAvroSerde[T] =
-    makeSerde[T](schemaRegistryUrl, schemaRegistryClient, isKey)
+    specificRecordSerde[T](schemaRegistryUrl, schemaRegistryClient, isKey)
 
   val foodKeySerde = serde[FoodKey](isKey = true)
   val foodValueSerde = serde[FoodValue](isKey = false)

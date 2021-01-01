@@ -1,0 +1,7 @@
+@namespace("com.fqaiser")
+protocol OutputKeyProtocol {
+  record OutputKey {
+    /** The id of the food parcel */
+    int foodId;
+  }
+}
