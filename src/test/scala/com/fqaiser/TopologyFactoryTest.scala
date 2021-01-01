@@ -2,7 +2,9 @@ package com.fqaiser
 
 import java.util.Properties
 import io.confluent.kafka.schemaregistry.client.{MockSchemaRegistryClient, SchemaRegistryClient}
-import org.apache.kafka.streams.{KeyValue, StreamsConfig, TopologyTestDriver}
+import org.apache.kafka.streams.{KeyValue, StreamsConfig, TestInputTopic, TestOutputTopic, TopologyTestDriver}
+import org.scalatest.Assertion
+import org.scalatest.compatible.Assertion
 import org.scalatest.featurespec.AnyFeatureSpec
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.matchers.should.Matchers
@@ -28,26 +30,33 @@ class TopologyFactoryTest extends AnyFeatureSpec with Matchers {
   props.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, "dummy:1234")
   val factory: TopologyFactory = TopologyFactory(inputTopicName, outputTopicName, "mockSchemaRegistryUrl", schemaRegistryClient)
 
+  private type testFn = (TopologyTestDriver, TestInputTopic[AnimalKey, AnimalValue], TestOutputTopic[ZooAnimalsKey, ZooAnimalsValue]) => Assertion
+
+  private def runTest(testFunction: testFn): Unit = {
+    val testDriver = new TopologyTestDriver(factory.topology, props)
+    val inputTopic = testDriver.createInputTopic(inputTopicName, factory.inputKeySerde.serializer, factory.inputValueSerde.serializer)
+    val outputTopic = testDriver.createOutputTopic(outputTopicName, factory.outputKeySerde.deserializer(), factory.outputValueSerde.deserializer())
+    testFunction(testDriver, inputTopic, outputTopic)
+    testDriver.close()
+  }
+
   Feature("only one type of animal in a given zoo") {
     Scenario("1 animal create event") {
-      val testDriver = new TopologyTestDriver(factory.topology, props)
-      val inputTopic = testDriver.createInputTopic(inputTopicName, factory.inputKeySerde.serializer, factory.inputValueSerde.serializer)
-      val outputTopic = testDriver.createOutputTopic(outputTopicName, factory.outputKeySerde.deserializer(), factory.outputValueSerde.deserializer())
+      runTest { (testDriver, inputTopic, outputTopic) =>
+        val animalKey = AnimalKey(animalId1)
+        val animalValue = AnimalValue(animalId1, zooId, amount)
+        inputTopic.pipeInput(animalKey, animalValue)
 
-      val animalKey = AnimalKey(animalId1)
-      val animalValue = AnimalValue(animalId1, zooId, amount)
-      inputTopic.pipeInput(animalKey, animalValue)
+        val result = outputTopic.readKeyValuesToList().asScala.toList
 
-      val result = outputTopic.readKeyValuesToList().asScala.toList
+        val zooAnimalsKey = ZooAnimalsKey(zooId)
+        val zooAnimalsValue = ZooAnimalsValue(List(animalValue))
+        val expected = Seq(
+          new KeyValue(zooAnimalsKey, zooAnimalsValue)
+        )
 
-      val zooAnimalsKey = ZooAnimalsKey(zooId)
-      val zooAnimalsValue = ZooAnimalsValue(List(animalValue))
-      val expected = Seq(
-        new KeyValue(zooAnimalsKey, zooAnimalsValue)
-      )
-
-      result should contain theSameElementsInOrderAs expected
-      testDriver.close()
+        result should contain theSameElementsInOrderAs expected
+      }
     }
   }
 
@@ -59,24 +68,21 @@ class TopologyFactoryTest extends AnyFeatureSpec with Matchers {
 
   Feature("multiple types of animals in a given zoo") {
     Scenario("1 animal create event") {
-      val testDriver = new TopologyTestDriver(factory.topology, props)
-      val inputTopic = testDriver.createInputTopic(inputTopicName, factory.inputKeySerde.serializer, factory.inputValueSerde.serializer)
-      val outputTopic = testDriver.createOutputTopic(outputTopicName, factory.outputKeySerde.deserializer(), factory.outputValueSerde.deserializer())
+      runTest { (testDriver, inputTopic, outputTopic) =>
+        val animalValue1 = AnimalValue(animalId1, zooId, amount)
+        val animalValue2 = AnimalValue(animalId2, zooId, amount)
+        inputTopic.pipeInput(AnimalKey(animalId1), animalValue1)
+        inputTopic.pipeInput(AnimalKey(animalId2), animalValue2)
 
-      val animalValue1 = AnimalValue(animalId1, zooId, amount)
-      val animalValue2 = AnimalValue(animalId2, zooId, amount)
-      inputTopic.pipeInput(AnimalKey(animalId1), animalValue1)
-      inputTopic.pipeInput(AnimalKey(animalId2), animalValue2)
+        val result = outputTopic.readKeyValuesToList().asScala.toList
 
-      val result = outputTopic.readKeyValuesToList().asScala.toList
+        val expected = Seq(
+          new KeyValue(ZooAnimalsKey(zooId), ZooAnimalsValue(List(animalValue1))),
+          new KeyValue(ZooAnimalsKey(zooId), ZooAnimalsValue(List(animalValue1, animalValue2)))
+        )
 
-      val expected = Seq(
-        new KeyValue(ZooAnimalsKey(zooId), ZooAnimalsValue(List(animalValue1))),
-        new KeyValue(ZooAnimalsKey(zooId), ZooAnimalsValue(List(animalValue1, animalValue2)))
-      )
-
-      result should contain theSameElementsInOrderAs expected
-      testDriver.close()
+        result should contain theSameElementsInOrderAs expected
+      }
     }
   }
 
