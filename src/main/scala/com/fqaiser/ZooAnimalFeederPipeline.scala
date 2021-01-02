@@ -4,14 +4,15 @@ import io.confluent.kafka.schemaregistry.client.SchemaRegistryClient
 import io.confluent.kafka.streams.serdes.avro.SpecificAvroSerde
 import org.apache.avro.specific.SpecificRecord
 import org.apache.kafka.common.utils.Utils
-import org.apache.kafka.streams.kstream.{Transformer, ValueTransformer}
+import org.apache.kafka.streams.Topology
+import org.apache.kafka.streams.kstream.ValueTransformer
 import org.apache.kafka.streams.processor.{ProcessorContext, StreamPartitioner}
 import org.apache.kafka.streams.scala.StreamsBuilder
 import org.apache.kafka.streams.scala.kstream._
 import org.apache.kafka.streams.state.{KeyValueStore, Stores, TimestampedKeyValueStore}
-import org.apache.kafka.streams.{KeyValue, Topology}
 
-import scala.collection.mutable.{ArrayBuffer, ListBuffer}
+import java.util
+import scala.collection.mutable.ArrayBuffer
 
 case class ZooAnimalFeederPipeline(
     animalsTopicName: String,
@@ -73,17 +74,13 @@ case class ZooAnimalFeederPipeline(
         .toTable(Materialized.as("zooAnimals")(zooIdAnimalIdSerde, animalValueSerde))
 
     val animalCaloriesCountStoreName: String = "animalCaloriesCount"
-    val logConfig = new java.util.HashMap[String, String]
-    logConfig.put("retention.ms", "172800000")
-    logConfig.put("retention.bytes", "10000000000")
-    logConfig.put("cleanup.policy", "compact,delete")
     val animalCaloriesCountStoreBuilder = Stores
       .keyValueStoreBuilder(
         Stores.persistentTimestampedKeyValueStore(animalCaloriesCountStoreName),
         animalKeySerde,
         animalCalorieFillSerde
       )
-      .withLoggingEnabled(logConfig)
+      .withLoggingEnabled(util.Collections.singletonMap("cleanup.policy", "compact"))
       .withCachingEnabled()
 
     streamsBuilder.addStateStore(animalCaloriesCountStoreBuilder)
@@ -103,6 +100,10 @@ case class ZooAnimalFeederPipeline(
     streamsBuilder.build()
   }
 
+  /**
+    * Takes a function to extract the zooId (Int) from the key.
+    * Returns a StreamPartitioner which partitions by the zooId (Int) in the key.
+    */
   private def makeZooIdPartitioner[K, V](extractZooIdFromKey: K => Int): StreamPartitioner[K, V] =
     (topic: String, key: K, value: V, numPartitions: Int) => {
       // TODO: look at DefaultPartitioner for how to make this work safely?
@@ -131,12 +132,17 @@ case class ZooAnimalFeederPipeline(
 
       override def transform(value: FoodValue): OutputValue = {
         val zooIdAnimals = getAnimals(value.zooId)
-        val animalId = zooIdAnimals.map(_.animalId).head
+        val selectedAnimal = zooIdAnimals.head
+        val animalId = selectedAnimal.animalId
         val animalKey = AnimalKey(animalId)
         val currentCalorieFill = Option(animalCalorieFillStateStore.get(animalKey)).map(_.fill).getOrElse(0)
         val newCalorieFill = currentCalorieFill + value.calories
-        animalCalorieFillStateStore.put(animalKey, AnimalCalorieFill(newCalorieFill))
-        OutputValue(value.foodId, value.zooId, value.calories, animalId, newCalorieFill)
+        if (newCalorieFill <= selectedAnimal.maxCalories) {
+          animalCalorieFillStateStore.put(animalKey, AnimalCalorieFill(newCalorieFill))
+          OutputValue(value.foodId, value.zooId, value.calories, animalId, newCalorieFill)
+        } else {
+          OutputValue(value.foodId, value.zooId, value.calories, -1, 0)
+        }
       }
 
       override def close(): Unit = {}
