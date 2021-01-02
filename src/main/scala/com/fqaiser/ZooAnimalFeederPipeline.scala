@@ -6,10 +6,12 @@ import org.apache.avro.specific.SpecificRecord
 import org.apache.kafka.common.utils.Utils
 import org.apache.kafka.streams.kstream.Transformer
 import org.apache.kafka.streams.processor.{ProcessorContext, StreamPartitioner}
+import org.apache.kafka.streams.scala.StreamsBuilder
 import org.apache.kafka.streams.scala.kstream._
-import org.apache.kafka.streams.scala.{Serdes, StreamsBuilder}
-import org.apache.kafka.streams.state.{KeyValueStore, TimestampedKeyValueStore, ValueAndTimestamp}
+import org.apache.kafka.streams.state.TimestampedKeyValueStore
 import org.apache.kafka.streams.{KeyValue, Topology}
+
+import scala.collection.mutable.{ArrayBuffer, ListBuffer}
 
 case class ZooAnimalFeederPipeline(
     animalsTopicName: String,
@@ -112,13 +114,13 @@ case class ZooAnimalFeederPipeline(
 
       override def close(): Unit = {}
 
-      private def getAnimals(zooId: Int): Seq[AnimalValue] = {
-        var zooIdAnimals = Seq.empty[AnimalValue]
+      private def getAnimals(zooId: Int): ArrayBuffer[AnimalValue] = {
+        var zooIdAnimals = ArrayBuffer.empty[AnimalValue]
         val iterator = zooAnimalStateStore.all()
         while (iterator.hasNext) {
-          val curr = iterator.next()
-          if (curr.key.zooId == zooId)
-            zooIdAnimals = zooIdAnimals :+ curr.value.value()
+          val timestampedKeyValue = iterator.next()
+          if (timestampedKeyValue.key.zooId == zooId)
+            zooIdAnimals += timestampedKeyValue.value.value()
         }
         iterator.close()
         zooIdAnimals
