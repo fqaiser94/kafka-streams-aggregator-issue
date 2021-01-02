@@ -8,7 +8,7 @@ import org.apache.kafka.streams.kstream.{Transformer, ValueTransformer}
 import org.apache.kafka.streams.processor.{ProcessorContext, StreamPartitioner}
 import org.apache.kafka.streams.scala.StreamsBuilder
 import org.apache.kafka.streams.scala.kstream._
-import org.apache.kafka.streams.state.TimestampedKeyValueStore
+import org.apache.kafka.streams.state.{KeyValueStore, Stores, TimestampedKeyValueStore}
 import org.apache.kafka.streams.{KeyValue, Topology}
 
 import scala.collection.mutable.{ArrayBuffer, ListBuffer}
@@ -37,6 +37,10 @@ case class ZooAnimalFeederPipeline(
   private case class ZooIdAnimalId(zooId: Int, animalId: Int)
   private val zooIdAnimalIdSerde =
     SerdeUtils.ccSerde[ZooIdAnimalId](schemaRegistryUrl, schemaRegistryClient, isKey = true)
+
+  private case class AnimalCalorieFill(fill: Int)
+  private val animalCalorieFillSerde =
+    SerdeUtils.ccSerde[AnimalCalorieFill](schemaRegistryUrl, schemaRegistryClient, isKey = false)
 
   private case class ZooId(zooId: Int)
   private val zooIdSerde =
@@ -68,11 +72,30 @@ case class ZooAnimalFeederPipeline(
         )
         .toTable(Materialized.as("zooAnimals")(zooIdAnimalIdSerde, animalValueSerde))
 
+    val animalCaloriesCountStoreName: String = "animalCaloriesCount"
+    val logConfig = new java.util.HashMap[String, String]
+    logConfig.put("retention.ms", "172800000")
+    logConfig.put("retention.bytes", "10000000000")
+    logConfig.put("cleanup.policy", "compact,delete")
+    val animalCaloriesCountStoreBuilder = Stores
+      .keyValueStoreBuilder(
+        Stores.persistentTimestampedKeyValueStore(animalCaloriesCountStoreName),
+        animalKeySerde,
+        animalCalorieFillSerde
+      )
+      .withLoggingEnabled(logConfig)
+      .withCachingEnabled()
+
+    streamsBuilder.addStateStore(animalCaloriesCountStoreBuilder)
+
+    // TODO: need to pass in animalCaloriesCount state store name?
     val zooAnimalStateStoreName: String = zooAnimalsTable.queryableStoreName
     val output: KStream[OutputKey, OutputValue] = food
       .transformValues(
-        () => animalFeederValueTransformer(zooAnimalStateStoreName),
-        zooAnimalStateStoreName)
+        () => animalFeederValueTransformer(zooAnimalStateStoreName, animalCaloriesCountStoreName),
+        zooAnimalStateStoreName,
+        animalCaloriesCountStoreName
+      )
       .selectKey((k, v) => OutputKey(v.foodId))
 
     output.to(outputTopicName)(Produced.`with`(outputKeySerde, outputValueSerde))
@@ -89,21 +112,31 @@ case class ZooAnimalFeederPipeline(
     }
 
   private def animalFeederValueTransformer(
-      zooAnimalStateStoreName: String
+      zooAnimalStateStoreName: String,
+      animalCaloriesCountStoreName: String
   ): ValueTransformer[FoodValue, OutputValue] =
     new ValueTransformer[FoodValue, OutputValue] {
       var zooAnimalStateStore: TimestampedKeyValueStore[ZooIdAnimalId, AnimalValue] = _
-      // TODO: create another state store for animalCalorieFill?
+      var animalCalorieFillStateStore: KeyValueStore[AnimalKey, AnimalCalorieFill] = _
 
       override def init(context: ProcessorContext): Unit = {
         zooAnimalStateStore = context
           .getStateStore(zooAnimalStateStoreName)
           .asInstanceOf[TimestampedKeyValueStore[ZooIdAnimalId, AnimalValue]]
+
+        animalCalorieFillStateStore = context
+          .getStateStore(animalCaloriesCountStoreName)
+          .asInstanceOf[KeyValueStore[AnimalKey, AnimalCalorieFill]]
       }
 
       override def transform(value: FoodValue): OutputValue = {
         val zooIdAnimals = getAnimals(value.zooId)
-        OutputValue(value.foodId, value.zooId, value.calories, zooIdAnimals.map(_.animalId).head)
+        val animalId = zooIdAnimals.map(_.animalId).head
+        val animalKey = AnimalKey(animalId)
+        val currentCalorieFill = Option(animalCalorieFillStateStore.get(animalKey)).map(_.fill).getOrElse(0)
+        val newCalorieFill = currentCalorieFill + value.calories
+        animalCalorieFillStateStore.put(animalKey, AnimalCalorieFill(newCalorieFill))
+        OutputValue(value.foodId, value.zooId, value.calories, animalId, newCalorieFill)
       }
 
       override def close(): Unit = {}

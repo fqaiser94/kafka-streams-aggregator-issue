@@ -3,11 +3,13 @@ protocol OutputValueProtocol {
   record OutputValue {
     /** The id of the food parcel */
     int foodId;
+    /** The amount of calories in the food parcel. */
+    int foodCalories;
     /** The id of the zoo the food parcel was destined for. */
     int zooId;
-    /** The amount of calories in the food parcel. */
-    int calories;
     /** The animal that was given the food to eat. */
     int animalId;
+    /** The amount of calories the animal has had. */
+    int animalCalorieFill;
   }
 }

@@ -100,7 +100,7 @@ class ZooAnimalFeederPipelineTest extends AnyFeatureSpec with Matchers with Embe
       }
     }
 
-    Scenario("1 animal created, 1 food parcel arrives") {
+    Scenario("1 animal created, 1 food parcel of 1 calorie arrives") {
       runTest { (testDriver, animalTopic, foodTopic, outputTopic) =>
         val animalKey = AnimalKey(animalId1)
         val animalValue = AnimalValue(animalId1, zooId1, maxCalories)
@@ -111,7 +111,27 @@ class ZooAnimalFeederPipelineTest extends AnyFeatureSpec with Matchers with Embe
         foodTopic.pipeInput(foodKey, foodValue)
 
         val expected = Seq(
-          new KeyValue(OutputKey(foodId1), OutputValue(foodId1, zooId1, calories1, animalId1))
+          new KeyValue(OutputKey(foodId1), OutputValue(foodId1, zooId1, calories1, animalId1, calories1))
+        )
+
+        outputTopicShouldContainTheSameElementsAs(outputTopic, expected)
+      }
+    }
+
+    Scenario("1 animal created, 2 food parcel of 1 calorie each arrive") {
+      runTest { (testDriver, animalTopic, foodTopic, outputTopic) =>
+        val animalKey = AnimalKey(animalId1)
+        val animalValue = AnimalValue(animalId1, zooId1, maxCalories)
+        animalTopic.pipeInput(animalKey, animalValue)
+
+        val foodKey = FoodKey(foodId1)
+        val foodValue = FoodValue(foodId1, zooId1, calories1)
+        foodTopic.pipeInput(foodKey, foodValue)
+        foodTopic.pipeInput(foodKey, foodValue)
+
+        val expected = Seq(
+          new KeyValue(OutputKey(foodId1), OutputValue(foodId1, zooId1, calories1, animalId1, calories1)),
+          new KeyValue(OutputKey(foodId1), OutputValue(foodId1, zooId1, calories1, animalId1, calories1 * 2))
         )
 
         outputTopicShouldContainTheSameElementsAs(outputTopic, expected)
