@@ -8,7 +8,7 @@ import org.apache.kafka.streams.kstream.Transformer
 import org.apache.kafka.streams.processor.{ProcessorContext, StreamPartitioner}
 import org.apache.kafka.streams.scala.kstream._
 import org.apache.kafka.streams.scala.{Serdes, StreamsBuilder}
-import org.apache.kafka.streams.state.{KeyValueStore, ValueAndTimestamp}
+import org.apache.kafka.streams.state.{KeyValueStore, TimestampedKeyValueStore, ValueAndTimestamp}
 import org.apache.kafka.streams.{KeyValue, Topology}
 
 case class ZooAnimalFeederPipeline(
@@ -67,10 +67,12 @@ case class ZooAnimalFeederPipeline(
         .toTable(Materialized.as("zooAnimals")(zooIdAnimalIdSerde, animalValueSerde))
 
     val zooAnimalStateStoreName: String = zooAnimalsTable.queryableStoreName
-    val output: KStream[OutputKey, OutputValue] = food.transform(
-      () => animalFeederTransformer(zooAnimalStateStoreName),
-      zooAnimalStateStoreName
-    ).peek((k, v) => println("********* got some output"))
+    val output: KStream[OutputKey, OutputValue] = food
+      .transform(
+        () => animalFeederTransformer(zooAnimalStateStoreName),
+        zooAnimalStateStoreName
+      )
+      .peek((k, v) => println("********* got some output"))
 
     output.to(outputTopicName)(Produced.`with`(outputKeySerde, outputValueSerde))
 
@@ -89,14 +91,14 @@ case class ZooAnimalFeederPipeline(
       zooAnimalStateStoreName: String
   ): Transformer[ZooId, FoodValue, KeyValue[OutputKey, OutputValue]] =
     new Transformer[ZooId, FoodValue, KeyValue[OutputKey, OutputValue]] {
-      var zooAnimalStateStore: KeyValueStore[ZooIdAnimalId, AnimalValue] = _
+      var zooAnimalStateStore: TimestampedKeyValueStore[ZooIdAnimalId, AnimalValue] = _
       // TODO: create another state store for animalCalorieFill?
 
       override def init(context: ProcessorContext): Unit = {
         println("********* transformer init")
         zooAnimalStateStore = context
           .getStateStore(zooAnimalStateStoreName)
-          .asInstanceOf[KeyValueStore[ZooIdAnimalId, AnimalValue]]
+          .asInstanceOf[TimestampedKeyValueStore[ZooIdAnimalId, AnimalValue]]
       }
 
       override def transform(
@@ -120,11 +122,8 @@ case class ZooAnimalFeederPipeline(
         val iterator = zooAnimalStateStore.all()
         while (iterator.hasNext) {
           val curr = iterator.next()
-          if (curr.key.zooId == zooId) {
-            val valueAndTimestamp = curr.value.asInstanceOf[ValueAndTimestamp[AnimalValue]]
-            val value = valueAndTimestamp.value()
-            zooIdAnimals = zooIdAnimals :+ value
-          }
+          if (curr.key.zooId == zooId)
+            zooIdAnimals = zooIdAnimals :+ curr.value.value()
         }
         iterator.close()
         println(s"********* zooIdAnimals: $zooIdAnimals")
