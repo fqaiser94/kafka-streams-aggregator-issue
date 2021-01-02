@@ -12,9 +12,9 @@ import org.apache.kafka.streams.state.KeyValueStore
 import org.apache.kafka.streams.{KeyValue, Topology}
 
 case class ZooAnimalFeederPipeline(
-    animalsTopic: String,
-    foodTopic: String,
-    outputTopic: String,
+    animalsTopicName: String,
+    foodTopicName: String,
+    outputTopicName: String,
     schemaRegistryUrl: String,
     schemaRegistryClient: SchemaRegistryClient
 ) {
@@ -41,7 +41,7 @@ case class ZooAnimalFeederPipeline(
     val streamsBuilder = new StreamsBuilder()
 
     val food = streamsBuilder
-      .stream(foodTopic)(Consumed.`with`(foodKeySerde, foodValueSerde))
+      .stream(foodTopicName)(Consumed.`with`(foodKeySerde, foodValueSerde))
       .selectKey((k, v) => v.zooId)
       .repartition(
         Repartitioned.`with`(partitioner = makeZooIdPartitioner[Int, FoodValue](zooId => zooId))(
@@ -50,9 +50,9 @@ case class ZooAnimalFeederPipeline(
         )
       )
 
-    val zooAnimalTable: KTable[ZooIdAnimalId, AnimalValue] =
+    val zooAnimalsTable: KTable[ZooIdAnimalId, AnimalValue] =
       streamsBuilder
-        .stream(animalsTopic)(Consumed.`with`(animalKeySerde, animalValueSerde))
+        .stream(animalsTopicName)(Consumed.`with`(animalKeySerde, animalValueSerde))
         .selectKey((k, v) => ZooIdAnimalId(v.zooId, v.animalId))
         // Repartition so that all animals for a given zoo end up on a particular partition
         .repartition(
@@ -61,15 +61,15 @@ case class ZooAnimalFeederPipeline(
             animalValueSerde
           )
         )
-        .toTable
+        .toTable(Materialized.as("zooAnimals")(zooIdAnimalIdSerde, animalValueSerde))
 
-    val zooAnimalStateStoreName: String = zooAnimalTable.queryableStoreName
+    val zooAnimalStateStoreName: String = zooAnimalsTable.queryableStoreName
     val output: KStream[OutputKey, OutputValue] = food.transform(
       () => animalFeederTransformer(zooAnimalStateStoreName),
       zooAnimalStateStoreName
     )
 
-    output.to(outputTopic)(Produced.`with`(outputKeySerde, outputValueSerde))
+    output.to(outputTopicName)(Produced.`with`(outputKeySerde, outputValueSerde))
 
     streamsBuilder.build()
   }

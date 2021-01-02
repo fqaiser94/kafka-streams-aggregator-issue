@@ -27,18 +27,22 @@ class ZooAnimalFeederPipelineTest extends AnyFeatureSpec with Matchers with Embe
   private type testFn = (
       TopologyTestDriver,
       TestInputTopic[AnimalKey, AnimalValue],
-      TestOutputTopic[ZooAnimalsKey, ZooAnimalsValue]
+      TestInputTopic[FoodKey, FoodValue],
+      TestOutputTopic[OutputKey, OutputValue]
   ) => Assertion
 
   private def runTest(testFunction: testFn): Unit = {
-    val inputTopicName = "inputTopic"
+    val animalsTopicName = "animalsTopic"
+    val foodTopicName = "foodTopic"
     val outputTopicName = "outputTopic"
 
     val schemaRegistryClient: SchemaRegistryClient = new MockSchemaRegistryClient()
-    val factory = SimpleAggregator(
-      inputTopicName,
+    val schemaRegistryUrl: String = "mockUrl"
+    val factory = ZooAnimalFeederPipeline(
+      animalsTopicName,
+      foodTopicName,
       outputTopicName,
-      "mockSchemaRegistryUrl",
+      schemaRegistryUrl,
       schemaRegistryClient
     )
 
@@ -47,10 +51,15 @@ class ZooAnimalFeederPipelineTest extends AnyFeatureSpec with Matchers with Embe
     props.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, "dummy:1234")
 
     val testDriver = new TopologyTestDriver(factory.topology, props)
-    val inputTopic = testDriver.createInputTopic(
-      inputTopicName,
+    val animalsTopic = testDriver.createInputTopic(
+      animalsTopicName,
       factory.animalKeySerde.serializer,
       factory.animalValueSerde.serializer
+    )
+    val foodTopic = testDriver.createInputTopic(
+      foodTopicName,
+      factory.foodKeySerde.serializer,
+      factory.foodValueSerde.serializer
     )
     val outputTopic = testDriver.createOutputTopic(
       outputTopicName,
@@ -58,7 +67,7 @@ class ZooAnimalFeederPipelineTest extends AnyFeatureSpec with Matchers with Embe
       factory.outputValueSerde.deserializer()
     )
     try {
-      testFunction(testDriver, inputTopic, outputTopic)
+      testFunction(testDriver, animalsTopic, foodTopic, outputTopic)
     } finally {
       testDriver.close()
     }
@@ -77,19 +86,13 @@ class ZooAnimalFeederPipelineTest extends AnyFeatureSpec with Matchers with Embe
   }
 
   Feature("only one type of animal in a given zoo") {
-    Scenario("1 animal created") {
-      runTest { (testDriver, inputTopic, outputTopic) =>
+    Scenario("1 animal created, no food arrives") {
+      runTest { (testDriver, animalTopic, foodTopic, outputTopic) =>
         val animalKey = AnimalKey(animalId1)
         val animalValue = AnimalValue(animalId1, zooId, maxCalories)
-        inputTopic.pipeInput(animalKey, animalValue)
+        animalTopic.pipeInput(animalKey, animalValue)
 
-        val zooAnimalsKey = ZooAnimalsKey(zooId)
-        val zooAnimalsValue = ZooAnimalsValue(List(animalValue))
-        val expected = Seq(
-          new KeyValue(zooAnimalsKey, zooAnimalsValue)
-        )
-
-        outputTopicShouldContainTheSameElementsAs(outputTopic, expected)
+        outputTopicShouldContainTheSameElementsAs(outputTopic, Seq.empty)
       }
     }
   }
