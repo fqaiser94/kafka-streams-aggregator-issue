@@ -4,7 +4,7 @@ import io.confluent.kafka.schemaregistry.client.SchemaRegistryClient
 import io.confluent.kafka.streams.serdes.avro.SpecificAvroSerde
 import org.apache.avro.specific.SpecificRecord
 import org.apache.kafka.common.utils.Utils
-import org.apache.kafka.streams.kstream.Transformer
+import org.apache.kafka.streams.kstream.{Transformer, ValueTransformer}
 import org.apache.kafka.streams.processor.{ProcessorContext, StreamPartitioner}
 import org.apache.kafka.streams.scala.StreamsBuilder
 import org.apache.kafka.streams.scala.kstream._
@@ -70,10 +70,10 @@ case class ZooAnimalFeederPipeline(
 
     val zooAnimalStateStoreName: String = zooAnimalsTable.queryableStoreName
     val output: KStream[OutputKey, OutputValue] = food
-      .transform(
-        () => animalFeederTransformer(zooAnimalStateStoreName),
-        zooAnimalStateStoreName
-      )
+      .transformValues(
+        () => animalFeederValueTransformer(zooAnimalStateStoreName),
+        zooAnimalStateStoreName)
+      .selectKey((k, v) => OutputKey(v.foodId))
 
     output.to(outputTopicName)(Produced.`with`(outputKeySerde, outputValueSerde))
 
@@ -88,10 +88,10 @@ case class ZooAnimalFeederPipeline(
       Utils.toPositive(Utils.murmur2(zooIdByteArray)) % numPartitions
     }
 
-  private def animalFeederTransformer(
+  private def animalFeederValueTransformer(
       zooAnimalStateStoreName: String
-  ): Transformer[ZooId, FoodValue, KeyValue[OutputKey, OutputValue]] =
-    new Transformer[ZooId, FoodValue, KeyValue[OutputKey, OutputValue]] {
+  ): ValueTransformer[FoodValue, OutputValue] =
+    new ValueTransformer[FoodValue, OutputValue] {
       var zooAnimalStateStore: TimestampedKeyValueStore[ZooIdAnimalId, AnimalValue] = _
       // TODO: create another state store for animalCalorieFill?
 
@@ -101,15 +101,9 @@ case class ZooAnimalFeederPipeline(
           .asInstanceOf[TimestampedKeyValueStore[ZooIdAnimalId, AnimalValue]]
       }
 
-      override def transform(
-          key: ZooId,
-          value: FoodValue
-      ): KeyValue[OutputKey, OutputValue] = {
+      override def transform(value: FoodValue): OutputValue = {
         val zooIdAnimals = getAnimals(value.zooId)
-        new KeyValue(
-          OutputKey(value.foodId),
-          OutputValue(value.foodId, value.zooId, value.calories, zooIdAnimals.map(_.animalId).head)
-        )
+        OutputValue(value.foodId, value.zooId, value.calories, zooIdAnimals.map(_.animalId).head)
       }
 
       override def close(): Unit = {}
