@@ -72,7 +72,6 @@ case class ZooAnimalFeederPipeline(
         () => animalFeederTransformer(zooAnimalStateStoreName),
         zooAnimalStateStoreName
       )
-      .peek((k, v) => println("********* got some output"))
 
     output.to(outputTopicName)(Produced.`with`(outputKeySerde, outputValueSerde))
 
@@ -95,7 +94,6 @@ case class ZooAnimalFeederPipeline(
       // TODO: create another state store for animalCalorieFill?
 
       override def init(context: ProcessorContext): Unit = {
-        println("********* transformer init")
         zooAnimalStateStore = context
           .getStateStore(zooAnimalStateStoreName)
           .asInstanceOf[TimestampedKeyValueStore[ZooIdAnimalId, AnimalValue]]
@@ -105,14 +103,11 @@ case class ZooAnimalFeederPipeline(
           key: ZooId,
           value: FoodValue
       ): KeyValue[OutputKey, OutputValue] = {
-        println("********* transformer transform")
         val zooIdAnimals = getAnimals(value.zooId)
-        val result = new KeyValue(
+        new KeyValue(
           OutputKey(value.foodId),
           OutputValue(value.foodId, value.zooId, value.calories, zooIdAnimals.map(_.animalId).head)
         )
-        println(s"********* transformer transform result: $result")
-        result
       }
 
       override def close(): Unit = {}
@@ -126,7 +121,6 @@ case class ZooAnimalFeederPipeline(
             zooIdAnimals = zooIdAnimals :+ curr.value.value()
         }
         iterator.close()
-        println(s"********* zooIdAnimals: $zooIdAnimals")
         zooIdAnimals
       }
     }
