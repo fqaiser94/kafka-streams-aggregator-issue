@@ -19,4 +19,15 @@ Your pipeline receives food parcels, each stamped for a particular zoo.
 The pipeline needs to feed the animals in each zoo.  
 But each animal only needs up to a maximum number of calories.  
 Once all the animals have been fed, we can throw the rest of the food away. 
+
+# Useful Research
+
+1. https://www.learningjournal.guru/courses/kafka/kafka-foundation-training/custom-partitioner/
+2. https://blog.knoldus.com/custom-partitioner-in-kafka-lets-take-quick-tour/
+3. https://danlebrero.com/2018/12/17/big-results-in-kafka-streams-range-query-rocksdb/
+4. https://sachabarbs.wordpress.com/2019/04/23/kafkastreams-using-processor-api-in-dsl/
+5. https://stackoverflow.com/questions/39985048/kafka-streaming-concurrency
+6. https://www.michael-noll.com/blog/2020/01/16/what-every-software-engineer-should-know-about-apache-kafka-fundamentals/
+7. https://www.confluent.io/blog/kafka-streams-tables-part-3-event-processing-fundamentals/
+
   

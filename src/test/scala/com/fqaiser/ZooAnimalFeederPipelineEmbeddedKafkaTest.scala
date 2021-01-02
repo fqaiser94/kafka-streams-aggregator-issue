@@ -5,6 +5,8 @@ import org.scalatest.matchers.should.Matchers
 
 class ZooAnimalFeederPipelineEmbeddedKafkaTest extends AnyFunSuite with Matchers {
 
-  test("") {}
+  test("") {
+
+  }
 
 }

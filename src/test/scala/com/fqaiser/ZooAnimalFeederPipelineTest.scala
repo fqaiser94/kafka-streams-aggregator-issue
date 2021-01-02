@@ -1,7 +1,6 @@
 package com.fqaiser
 
 import io.confluent.kafka.schemaregistry.client.{MockSchemaRegistryClient, SchemaRegistryClient}
-import net.manub.embeddedkafka.schemaregistry.streams.EmbeddedKafkaStreams
 import org.apache.kafka.streams._
 import org.scalatest.compatible.Assertion
 import org.scalatest.featurespec.AnyFeatureSpec
@@ -10,7 +9,7 @@ import org.scalatest.matchers.should.Matchers
 import java.util.Properties
 import _root_.scala.jdk.CollectionConverters.CollectionHasAsScala
 
-class ZooAnimalFeederPipelineTest extends AnyFeatureSpec with Matchers with EmbeddedKafkaStreams {
+class ZooAnimalFeederPipelineTest extends AnyFeatureSpec with Matchers {
 
   // TODO: still need a test with embedded kafka to go through adder/subtractor behaviour
 
