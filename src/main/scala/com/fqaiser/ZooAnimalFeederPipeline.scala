@@ -8,7 +8,7 @@ import org.apache.kafka.streams.kstream.Transformer
 import org.apache.kafka.streams.processor.{ProcessorContext, StreamPartitioner}
 import org.apache.kafka.streams.scala.kstream._
 import org.apache.kafka.streams.scala.{Serdes, StreamsBuilder}
-import org.apache.kafka.streams.state.KeyValueStore
+import org.apache.kafka.streams.state.{KeyValueStore, ValueAndTimestamp}
 import org.apache.kafka.streams.{KeyValue, Topology}
 
 case class ZooAnimalFeederPipeline(
@@ -33,19 +33,22 @@ case class ZooAnimalFeederPipeline(
   val outputValueSerde: SpecificAvroSerde[OutputValue] = specificRecordSerde[OutputValue](isKey = false)
 
   private case class ZooIdAnimalId(zooId: Int, animalId: Int)
-
   private val zooIdAnimalIdSerde =
     SerdeUtils.ccSerde[ZooIdAnimalId](schemaRegistryUrl, schemaRegistryClient, isKey = true)
+
+  private case class ZooId(zooId: Int)
+  private val zooIdSerde =
+    SerdeUtils.ccSerde[ZooId](schemaRegistryUrl, schemaRegistryClient, isKey = true)
 
   def topology: Topology = {
     val streamsBuilder = new StreamsBuilder()
 
-    val food = streamsBuilder
+    val food: KStream[ZooId, FoodValue] = streamsBuilder
       .stream(foodTopicName)(Consumed.`with`(foodKeySerde, foodValueSerde))
-      .selectKey((k, v) => v.zooId)
+      .selectKey((k, v) => ZooId(v.zooId))
       .repartition(
-        Repartitioned.`with`(partitioner = makeZooIdPartitioner[Int, FoodValue](zooId => zooId))(
-          Serdes.Integer,
+        Repartitioned.`with`(partitioner = makeZooIdPartitioner[ZooId, FoodValue](_.zooId))(
+          zooIdSerde,
           foodValueSerde
         )
       )
@@ -67,7 +70,7 @@ case class ZooAnimalFeederPipeline(
     val output: KStream[OutputKey, OutputValue] = food.transform(
       () => animalFeederTransformer(zooAnimalStateStoreName),
       zooAnimalStateStoreName
-    )
+    ).peek((k, v) => println("********* got some output"))
 
     output.to(outputTopicName)(Produced.`with`(outputKeySerde, outputValueSerde))
 
@@ -84,28 +87,30 @@ case class ZooAnimalFeederPipeline(
 
   private def animalFeederTransformer(
       zooAnimalStateStoreName: String
-  ): Transformer[Int, FoodValue, KeyValue[OutputKey, OutputValue]] =
-    new Transformer[Int, FoodValue, KeyValue[OutputKey, OutputValue]] {
+  ): Transformer[ZooId, FoodValue, KeyValue[OutputKey, OutputValue]] =
+    new Transformer[ZooId, FoodValue, KeyValue[OutputKey, OutputValue]] {
       var zooAnimalStateStore: KeyValueStore[ZooIdAnimalId, AnimalValue] = _
       // TODO: create another state store for animalCalorieFill?
 
       override def init(context: ProcessorContext): Unit = {
+        println("********* transformer init")
         zooAnimalStateStore = context
           .getStateStore(zooAnimalStateStoreName)
           .asInstanceOf[KeyValueStore[ZooIdAnimalId, AnimalValue]]
       }
 
       override def transform(
-          key: Int,
+          key: ZooId,
           value: FoodValue
       ): KeyValue[OutputKey, OutputValue] = {
-        val zooId = value.zooId
-        val zooIdAnimals = getAnimals(zooId)
-        // TOOD: for now just feed one animal
-        new KeyValue(
+        println("********* transformer transform")
+        val zooIdAnimals = getAnimals(value.zooId)
+        val result = new KeyValue(
           OutputKey(value.foodId),
           OutputValue(value.foodId, value.zooId, value.calories, zooIdAnimals.map(_.animalId).head)
         )
+        println(s"********* transformer transform result: $result")
+        result
       }
 
       override def close(): Unit = {}
@@ -116,10 +121,13 @@ case class ZooAnimalFeederPipeline(
         while (iterator.hasNext) {
           val curr = iterator.next()
           if (curr.key.zooId == zooId) {
-            zooIdAnimals = zooIdAnimals :+ curr.value
+            val valueAndTimestamp = curr.value.asInstanceOf[ValueAndTimestamp[AnimalValue]]
+            val value = valueAndTimestamp.value()
+            zooIdAnimals = zooIdAnimals :+ value
           }
         }
         iterator.close()
+        println(s"********* zooIdAnimals: $zooIdAnimals")
         zooIdAnimals
       }
     }
