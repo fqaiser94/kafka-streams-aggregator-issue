@@ -6,8 +6,8 @@ import org.apache.avro.specific.SpecificRecord
 import org.apache.kafka.common.utils.Utils
 import org.apache.kafka.streams.kstream.Transformer
 import org.apache.kafka.streams.processor.{ProcessorContext, StreamPartitioner}
-import org.apache.kafka.streams.scala.{Serdes, StreamsBuilder}
 import org.apache.kafka.streams.scala.kstream._
+import org.apache.kafka.streams.scala.{Serdes, StreamsBuilder}
 import org.apache.kafka.streams.state.KeyValueStore
 import org.apache.kafka.streams.{KeyValue, Topology}
 

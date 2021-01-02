@@ -10,6 +10,8 @@ libraryDependencies ++= Seq(
   "org.apache.kafka" %% "kafka-streams-scala" % kafkaVersion,
   "io.confluent" % "kafka-streams-avro-serde" % confluentVersion,
   "io.confluent" % "kafka-schema-registry-client" % confluentVersion,
+  "com.sksamuel.avro4s" %% "avro4s-core" % "4.0.4",
+
   "org.apache.kafka" % "kafka-streams-test-utils" % kafkaVersion % Test,
   "io.github.embeddedkafka" %% "embedded-kafka-schema-registry-streams" % confluentVersion % Test,
   "org.scalatest" %% "scalatest" % "3.2.2" % Test
