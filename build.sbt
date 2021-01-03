@@ -24,6 +24,7 @@ resolvers ++= Seq(
   "jitpack" at "https://jitpack.io"
 )
 
+// TODO: don't really specificAvro anymore
 sourceGenerators in Compile += (avroScalaGenerateSpecific in Compile).taskValue
 
 scalafmtOnCompile := true

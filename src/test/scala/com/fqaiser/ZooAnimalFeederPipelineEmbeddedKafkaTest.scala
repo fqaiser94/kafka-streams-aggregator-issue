@@ -192,4 +192,14 @@ class ZooAnimalFeederPipelineEmbeddedKafkaTest
     }
   }
 
+  Feature("Preseed state store changelog topic with some state") {
+    Scenario("1 animal with existing calorie fill") {
+      ???
+    }
+
+    Scenario("1 animal with existing calorie fill and 1 new animal comes in") {
+      ???
+    }
+  }
+
 }
