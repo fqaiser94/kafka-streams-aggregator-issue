@@ -125,6 +125,7 @@ class ZooAnimalFeederPipelineEmbeddedKafkaTest
   private type testFn = (
       KafkaStreams,
       TestAdminClient,
+      SchemaRegistryClient,
       TestInputTopic[AnimalKey, AnimalValue],
       TestInputTopic[FoodKey, FoodValue],
       TestOutputTopic[OutputKey, OutputValue]
@@ -182,7 +183,7 @@ class ZooAnimalFeederPipelineEmbeddedKafkaTest
       kafkaStreams.cleanUp()
       preStartActions(factory, adminClient)
       kafkaStreams.start()
-      testFunction(kafkaStreams, adminClient, animalsTopic, foodTopic, outputTopic)
+      testFunction(kafkaStreams, adminClient, schemaRegistryClient, animalsTopic, foodTopic, outputTopic)
     } finally {
       kafkaStreams.close()
     }
@@ -200,9 +201,9 @@ class ZooAnimalFeederPipelineEmbeddedKafkaTest
     result should contain theSameElementsInOrderAs expected
   }
 
-  Feature("") {
+  Feature("basic") {
     Scenario("1 animal created, 1 food parcel of 1 calorie arrives") {
-      runKafkaTest { (stream, adminClient, animalTopic, foodTopic, outputTopic) =>
+      runKafkaTest { (stream, adminClient, schemaRegistryClient, animalTopic, foodTopic, outputTopic) =>
         val animalKey = AnimalKey(animalId1)
         val animalValue = AnimalValue(animalId1, zooId1, maxCalories)
         animalTopic.pipeInput(animalKey, animalValue, partition = 1)
@@ -221,14 +222,37 @@ class ZooAnimalFeederPipelineEmbeddedKafkaTest
         outputTopicShouldContainTheSameElementsAs(outputTopic, expected)
       }
     }
+
+    Scenario("1 animal created, 2 food parcels of 1 calorie each arrives") {
+      runKafkaTest { (stream, adminClient, schemaRegistryClient, animalTopic, foodTopic, outputTopic) =>
+        val animalKey = AnimalKey(animalId1)
+        val animalValue = AnimalValue(animalId1, zooId1, maxCalories)
+        animalTopic.pipeInput(animalKey, animalValue, partition = 1)
+
+        // sleep to avoid situation where food goes to streams app before the animal exists in the state store
+        Thread.sleep(5000)
+
+        val foodKey = FoodKey(foodId1)
+        val foodValue = FoodValue(foodId1, zooId1, calories1)
+        foodTopic.pipeInput(foodKey, foodValue, partition = 1)
+        foodTopic.pipeInput(foodKey, foodValue, partition = 1)
+
+        val expected = Seq(
+          new KeyValue(OutputKey(foodId1), OutputValue(foodId1, zooId1, calories1, animalId1, calories1)),
+          new KeyValue(OutputKey(foodId1), OutputValue(foodId1, zooId1, calories1, animalId1, calories1 * 2))
+        )
+
+        outputTopicShouldContainTheSameElementsAs(outputTopic, expected)
+      }
+    }
   }
 
-  Feature("Preseed state store changelog topic with some state") {
+  Feature("Pre-seed state store changelog topic with some state") {
     Scenario("1 animal with existing calorie fill, single partitioned topics") {
       val initialCalorieFill = 3
 
       runKafkaTest(
-        (stream, adminClient, animalTopic, foodTopic, outputTopic) => {
+        (stream, adminClient, schemaRegistryClient, animalTopic, foodTopic, outputTopic) => {
           val animalKey = AnimalKey(animalId1)
           val animalValue = AnimalValue(animalId1, zooId1, maxCalories)
           animalTopic.pipeInput(animalKey, animalValue, partition = 1)
@@ -259,9 +283,12 @@ class ZooAnimalFeederPipelineEmbeddedKafkaTest
             factory.animalKeySerde.serializer(),
             factory.animalCalorieFillSerde.serializer()
           )
-          // should use DefaultPartitioner here to determine where it should go.
+          // TODO: what partitioner should be used here? default? zooIdStreamPartitioner?
+          println("before")
+          println(factory.schemaRegistryClient.getAllSubjects)
           changeLogTopic.pipeInput(AnimalKey(animalId1), AnimalCalorieFill(initialCalorieFill))
-          // seed some data
+          println("after")
+          println(factory.schemaRegistryClient.getAllSubjects)
         }
       )
     }
