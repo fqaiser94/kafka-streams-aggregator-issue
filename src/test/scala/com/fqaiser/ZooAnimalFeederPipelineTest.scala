@@ -153,7 +153,7 @@ class ZooAnimalFeederPipelineTest extends AnyFeatureSpec with Matchers {
           new KeyValue(OutputKey(foodId1), OutputValue(foodId1, zooId1, calories1, animalId1, calories1 * 3)),
           new KeyValue(OutputKey(foodId1), OutputValue(foodId1, zooId1, calories1, animalId1, calories1 * 4)),
           new KeyValue(OutputKey(foodId1), OutputValue(foodId1, zooId1, calories1, animalId1, calories1 * 5)),
-          new KeyValue(OutputKey(foodId1), OutputValue(foodId1, zooId1, calories1, -1, 0)),
+          new KeyValue(OutputKey(foodId1), OutputValue(foodId1, zooId1, calories1, -1, 0))
         )
 
         outputTopicShouldContainTheSameElementsAs(outputTopic, expected)

@@ -34,23 +34,15 @@ class ZooIdPartitionerTest extends AnyFeatureSpec with Matchers {
   }
 
   Feature("partition should always return a value between 0 and numPartitions -1") {
-    Scenario("numPartitions = 1") {
+    Scenario("numPartitions = 1") {}
 
-    }
+    Scenario("numPartitions = 2") {}
 
-    Scenario("numPartitions = 2") {
-
-    }
-
-    Scenario("numPartitions = 8") {
-
-    }
+    Scenario("numPartitions = 8") {}
   }
 
   Feature("partition return value should be evenly distributed over a range of zooIds") {
-    Scenario() {
-
-    }
+    Scenario("???") {}
   }
 
 }

@@ -4,14 +4,11 @@ import io.confluent.kafka.schemaregistry.client.SchemaRegistryClient
 import io.confluent.kafka.streams.serdes.avro.SpecificAvroSerde
 import org.apache.avro.specific.SpecificRecord
 import org.apache.kafka.streams.Topology
-import org.apache.kafka.streams.kstream.ValueTransformer
-import org.apache.kafka.streams.processor.ProcessorContext
 import org.apache.kafka.streams.scala.StreamsBuilder
 import org.apache.kafka.streams.scala.kstream._
-import org.apache.kafka.streams.state.{KeyValueStore, Stores, TimestampedKeyValueStore}
+import org.apache.kafka.streams.state.Stores
 
 import java.util
-import scala.collection.mutable.ArrayBuffer
 
 case class ZooAnimalFeederPipeline(
     animalsTopicName: String,
@@ -34,11 +31,9 @@ case class ZooAnimalFeederPipeline(
   val outputKeySerde: SpecificAvroSerde[OutputKey] = specificRecordSerde[OutputKey](isKey = true)
   val outputValueSerde: SpecificAvroSerde[OutputValue] = specificRecordSerde[OutputValue](isKey = false)
 
-  private case class ZooIdAnimalId(zooId: Int, animalId: Int)
   private val zooIdAnimalIdSerde =
     SerdeUtils.ccSerde[ZooIdAnimalId](schemaRegistryUrl, schemaRegistryClient, isKey = true)
 
-  private case class AnimalCalorieFill(fill: Int)
   private val animalCalorieFillSerde =
     SerdeUtils.ccSerde[AnimalCalorieFill](schemaRegistryUrl, schemaRegistryClient, isKey = false)
 
@@ -90,7 +85,7 @@ case class ZooAnimalFeederPipeline(
     val zooAnimalStateStoreName: String = zooAnimalsTable.queryableStoreName
     val output: KStream[OutputKey, OutputValue] = food
       .transformValues(
-        () => animalFeederValueTransformer(zooAnimalStateStoreName, animalCaloriesCountStoreName),
+        () => AnimalFeederValueTransformer(zooAnimalStateStoreName, animalCaloriesCountStoreName),
         zooAnimalStateStoreName,
         animalCaloriesCountStoreName
       )
@@ -101,53 +96,4 @@ case class ZooAnimalFeederPipeline(
 
     streamsBuilder.build()
   }
-
-  private def animalFeederValueTransformer(
-      zooAnimalStateStoreName: String,
-      animalCaloriesCountStoreName: String
-  ): ValueTransformer[FoodValue, OutputValue] =
-    new ValueTransformer[FoodValue, OutputValue] {
-      var zooAnimalStateStore: TimestampedKeyValueStore[ZooIdAnimalId, AnimalValue] = _
-      var animalCalorieFillStateStore: KeyValueStore[AnimalKey, AnimalCalorieFill] = _
-
-      override def init(context: ProcessorContext): Unit = {
-        zooAnimalStateStore = context
-          .getStateStore(zooAnimalStateStoreName)
-          .asInstanceOf[TimestampedKeyValueStore[ZooIdAnimalId, AnimalValue]]
-
-        animalCalorieFillStateStore = context
-          .getStateStore(animalCaloriesCountStoreName)
-          .asInstanceOf[KeyValueStore[AnimalKey, AnimalCalorieFill]]
-      }
-
-      override def transform(value: FoodValue): OutputValue = {
-        val zooIdAnimals = getAnimals(value.zooId)
-        val selectedAnimal = zooIdAnimals.head
-        val animalId = selectedAnimal.animalId
-        val animalKey = AnimalKey(animalId)
-        val currentCalorieFill = Option(animalCalorieFillStateStore.get(animalKey)).map(_.fill).getOrElse(0)
-        val newCalorieFill = currentCalorieFill + value.calories
-        if (newCalorieFill <= selectedAnimal.maxCalories) {
-          animalCalorieFillStateStore.put(animalKey, AnimalCalorieFill(newCalorieFill))
-          OutputValue(value.foodId, value.zooId, value.calories, animalId, newCalorieFill)
-        } else {
-          OutputValue(value.foodId, value.zooId, value.calories, -1, 0)
-        }
-      }
-
-      override def close(): Unit = {}
-
-      private def getAnimals(zooId: Int): ArrayBuffer[AnimalValue] = {
-        var zooIdAnimals = ArrayBuffer.empty[AnimalValue]
-        val iterator = zooAnimalStateStore.all()
-        while (iterator.hasNext) {
-          val timestampedKeyValue = iterator.next()
-          if (timestampedKeyValue.key.zooId == zooId)
-            zooIdAnimals += timestampedKeyValue.value.value()
-        }
-        iterator.close()
-        zooIdAnimals
-      }
-    }
-
 }
