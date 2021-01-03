@@ -255,14 +255,14 @@ class ZooAnimalFeederPipelineEmbeddedKafkaTest
         (stream, adminClient, schemaRegistryClient, animalTopic, foodTopic, outputTopic) => {
           val animalKey = AnimalKey(animalId1)
           val animalValue = AnimalValue(animalId1, zooId1, maxCalories)
-          animalTopic.pipeInput(animalKey, animalValue, partition = 1)
+          animalTopic.pipeInput(animalKey, animalValue)
 
           // sleep to avoid situation where food goes to streams app before the animal exists in the state store
           Thread.sleep(5000)
 
           val foodKey = FoodKey(foodId1)
           val foodValue = FoodValue(foodId1, zooId1, calories1)
-          foodTopic.pipeInput(foodKey, foodValue, partition = 1)
+          foodTopic.pipeInput(foodKey, foodValue)
 
           val expected = Seq(
             new KeyValue(
@@ -270,8 +270,6 @@ class ZooAnimalFeederPipelineEmbeddedKafkaTest
               OutputValue(foodId1, zooId1, calories1, animalId1, initialCalorieFill + calories1)
             )
           )
-
-          println(s"listTopics: ${adminClient.adminClient.listTopics().names().get().asScala.mkString(",")}")
 
           outputTopicShouldContainTheSameElementsAs(outputTopic, expected)
         },
@@ -283,14 +281,47 @@ class ZooAnimalFeederPipelineEmbeddedKafkaTest
             factory.animalKeySerde.serializer(),
             factory.animalCalorieFillSerde.serializer()
           )
-          // TODO: what partitioner should be used here? default? zooIdStreamPartitioner?
-          println("before")
-          println(factory.schemaRegistryClient.getAllSubjects)
           changeLogTopic.pipeInput(AnimalKey(animalId1), AnimalCalorieFill(initialCalorieFill))
-          println("after")
-          println(factory.schemaRegistryClient.getAllSubjects)
-          println(factory.schemaRegistryClient.getSchemaById(1))
-          println(factory.schemaRegistryClient.getSchemaById(2))
+        }
+      )
+    }
+
+    Scenario("try to prove we need to partition by zooId") {
+      val initialCalorieFill = 3
+
+      val animalId = 4
+      val animalKey = AnimalKey(animalId)
+
+      runKafkaTest(
+        (stream, adminClient, schemaRegistryClient, animalTopic, foodTopic, outputTopic) => {
+          val animalValue = AnimalValue(animalId, zooId1, maxCalories)
+          animalTopic.pipeInput(animalKey, animalValue)
+
+          // sleep to avoid situation where food goes to streams app before the animal exists in the state store
+          Thread.sleep(5000)
+
+          val foodKey = FoodKey(foodId1)
+          val foodValue = FoodValue(foodId1, zooId1, calories1)
+          foodTopic.pipeInput(foodKey, foodValue)
+
+          val expected = Seq(
+            new KeyValue(
+              OutputKey(foodId1),
+              OutputValue(foodId1, zooId1, calories1, animalId, initialCalorieFill + calories1)
+            )
+          )
+
+          outputTopicShouldContainTheSameElementsAs(outputTopic, expected)
+        },
+        (factory, adminClient: TestAdminClient) => {
+          val stateStoreTopic = "test-animalCaloriesCount-changelog"
+          val changeLogTopic = TestInputTopic(
+            stateStoreTopic,
+            2,
+            factory.animalKeySerde.serializer(),
+            factory.animalCalorieFillSerde.serializer()
+          )
+          changeLogTopic.pipeInput(animalKey, AnimalCalorieFill(initialCalorieFill))
         }
       )
     }
