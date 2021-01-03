@@ -3,10 +3,9 @@ package com.fqaiser
 import io.confluent.kafka.schemaregistry.client.SchemaRegistryClient
 import io.confluent.kafka.streams.serdes.avro.SpecificAvroSerde
 import org.apache.avro.specific.SpecificRecord
-import org.apache.kafka.common.utils.Utils
 import org.apache.kafka.streams.Topology
 import org.apache.kafka.streams.kstream.ValueTransformer
-import org.apache.kafka.streams.processor.{ProcessorContext, StreamPartitioner}
+import org.apache.kafka.streams.processor.ProcessorContext
 import org.apache.kafka.streams.scala.StreamsBuilder
 import org.apache.kafka.streams.scala.kstream._
 import org.apache.kafka.streams.state.{KeyValueStore, Stores, TimestampedKeyValueStore}
@@ -52,10 +51,10 @@ case class ZooAnimalFeederPipeline(
 
     val food: KStream[ZooId, FoodValue] = streamsBuilder
       .stream(foodTopicName)(Consumed.`with`(foodKeySerde, foodValueSerde))
-      .peek((k,v) => println(s"************ receivedFood: ${(k,v)}"))
+      .peek((k, v) => println(s"************ receivedFood: ${(k, v)}"))
       .selectKey((k, v) => ZooId(v.zooId))
       .repartition(
-        Repartitioned.`with`(partitioner = makeZooIdPartitioner[ZooId, FoodValue](_.zooId))(
+        Repartitioned.`with`(partitioner = ZooIdPartitioner[ZooId, FoodValue](_.zooId))(
           zooIdSerde,
           foodValueSerde
         )
@@ -64,11 +63,11 @@ case class ZooAnimalFeederPipeline(
     val zooAnimalsTable: KTable[ZooIdAnimalId, AnimalValue] =
       streamsBuilder
         .stream(animalsTopicName)(Consumed.`with`(animalKeySerde, animalValueSerde))
-        .peek((k,v) => println(s"************ animal: ${(k,v)}"))
+        .peek((k, v) => println(s"************ animal: ${(k, v)}"))
         .selectKey((k, v) => ZooIdAnimalId(v.zooId, v.animalId))
         // Repartition so that all animals for a given zoo end up on a particular partition
         .repartition(
-          Repartitioned.`with`(makeZooIdPartitioner[ZooIdAnimalId, AnimalValue](_.zooId))(
+          Repartitioned.`with`(ZooIdPartitioner[ZooIdAnimalId, AnimalValue](_.zooId))(
             zooIdAnimalIdSerde,
             animalValueSerde
           )
@@ -96,24 +95,12 @@ case class ZooAnimalFeederPipeline(
         animalCaloriesCountStoreName
       )
       .selectKey((k, v) => OutputKey(v.foodId))
-      .peek((k,v) => println(s"************ some animal consumed some food: ${(k,v)}"))
+      .peek((k, v) => println(s"************ some animal consumed some food: ${(k, v)}"))
 
     output.to(outputTopicName)(Produced.`with`(outputKeySerde, outputValueSerde))
 
     streamsBuilder.build()
   }
-
-  /**
-    * Takes a function to extract the zooId (Int) from the key.
-    * Returns a StreamPartitioner which partitions by the zooId (Int) in the key.
-    */
-  private def makeZooIdPartitioner[K, V](extractZooIdFromKey: K => Int): StreamPartitioner[K, V] =
-    (topic: String, key: K, value: V, numPartitions: Int) => {
-      // TODO: look at DefaultPartitioner for how to make this work safely?
-      val zooId = extractZooIdFromKey(key)
-      val zooIdByteArray = BigInt(zooId).toByteArray
-      Utils.toPositive(Utils.murmur2(zooIdByteArray)) % numPartitions
-    }
 
   private def animalFeederValueTransformer(
       zooAnimalStateStoreName: String,
