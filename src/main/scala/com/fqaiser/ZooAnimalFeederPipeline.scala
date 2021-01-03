@@ -73,6 +73,8 @@ case class ZooAnimalFeederPipeline(
     val animalCaloriesCountStoreBuilder = Stores
       .keyValueStoreBuilder(
         Stores.persistentTimestampedKeyValueStore(animalCaloriesCountStoreName),
+        // humm shouldn't this be partitioned by zooId animalId as well? otherwise how do we know it's the correct
+        // partition is there for the stream-task to work on?
         animalKeySerde,
         animalCalorieFillSerde
       )

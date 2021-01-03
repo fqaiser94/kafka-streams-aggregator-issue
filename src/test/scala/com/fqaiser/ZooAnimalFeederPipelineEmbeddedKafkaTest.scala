@@ -89,7 +89,8 @@ class ZooAnimalFeederPipelineEmbeddedKafkaTest
     }
     private val kafkaProducer = new KafkaProducer[K, V](producerProps, keySerializer, valueSerializer)
 
-    def pipeInput(k: K, v: V, partition: Int): Unit =
+    // partition can be null, in which case kafka defaults to DefaultPartitioner
+    def pipeInput(k: K, v: V, partition: java.lang.Integer = null): Unit =
       kafkaProducer.send(new ProducerRecord(topicName, partition, k, v)).get()
   }
 
@@ -254,11 +255,12 @@ class ZooAnimalFeederPipelineEmbeddedKafkaTest
           val stateStoreTopic = "test-animalCaloriesCount-changelog"
           val changeLogTopic = TestInputTopic(
             stateStoreTopic,
-            1,
+            2,
             factory.animalKeySerde.serializer(),
             factory.animalCalorieFillSerde.serializer()
           )
-          changeLogTopic.pipeInput(AnimalKey(animalId1), AnimalCalorieFill(initialCalorieFill), 1)
+          // should use DefaultPartitioner here to determine where it should go.
+          changeLogTopic.pipeInput(AnimalKey(animalId1), AnimalCalorieFill(initialCalorieFill))
           // seed some data
         }
       )
