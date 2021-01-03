@@ -1,30 +1,23 @@
 package com.fqaiser
 
 import io.confluent.kafka.schemaregistry.client.{MockSchemaRegistryClient, SchemaRegistryClient}
-import net.manub.embeddedkafka.schemaregistry.EmbeddedKafkaConfig
-import net.manub.embeddedkafka.schemaregistry.streams.EmbeddedKafkaStreams
-import org.apache.kafka.clients.admin.{AdminClient, AdminClientConfig, CreateTopicsOptions, NewTopic}
-import org.apache.kafka.clients.consumer.{ConsumerConfig, ConsumerRecord, ConsumerRecords, KafkaConsumer}
+import org.apache.kafka.clients.admin.{AdminClient, AdminClientConfig, NewTopic}
+import org.apache.kafka.clients.consumer.{ConsumerConfig, KafkaConsumer}
 import org.apache.kafka.clients.producer.{KafkaProducer, ProducerConfig, ProducerRecord}
 import org.apache.kafka.common.serialization.{Deserializer, Serializer}
-import org.apache.kafka.streams.{KafkaStreams, KeyValue, StreamsConfig, TestInputTopic, TestOutputTopic, TopologyTestDriver}
-import org.awaitility.Awaitility
-import org.scalatest.funsuite.AnyFunSuite
-import org.scalatest.matchers.should.Matchers
-import org.awaitility.Awaitility._
+import org.apache.kafka.streams.{KafkaStreams, KeyValue, StreamsConfig}
 import org.awaitility.scala.AwaitilitySupport
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.compatible.Assertion
 import org.scalatest.featurespec.AnyFeatureSpec
-
-import java.util.Properties
+import org.scalatest.matchers.should.Matchers
 import org.testcontainers.containers.KafkaContainer
 import org.testcontainers.utility.DockerImageName
 
 import java.time.Duration.ofMillis
-import scala.jdk.CollectionConverters.IterableHasAsScala
 import java.util
-import scala.concurrent.duration.SECONDS
+import java.util.Properties
+import scala.jdk.CollectionConverters.IterableHasAsScala
 
 class ZooAnimalFeederPipelineEmbeddedKafkaTest
     extends AnyFeatureSpec
