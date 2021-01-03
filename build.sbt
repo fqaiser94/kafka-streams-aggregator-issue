@@ -14,6 +14,8 @@ libraryDependencies ++= Seq(
 
   "org.apache.kafka" % "kafka-streams-test-utils" % kafkaVersion % Test,
   "io.github.embeddedkafka" %% "embedded-kafka-schema-registry-streams" % confluentVersion % Test,
+  "org.awaitility" % "awaitility-scala" % "4.0.3" % Test,
+  "org.testcontainers" % "kafka" % "1.15.1" % Test,
   "org.scalatest" %% "scalatest" % "3.2.2" % Test
 )
 
