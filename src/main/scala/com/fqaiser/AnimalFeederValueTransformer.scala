@@ -2,7 +2,7 @@ package com.fqaiser
 
 import org.apache.kafka.streams.kstream.ValueTransformer
 import org.apache.kafka.streams.processor.ProcessorContext
-import org.apache.kafka.streams.state.{KeyValueStore, TimestampedKeyValueStore}
+import org.apache.kafka.streams.state.{KeyValueStore, TimestampedKeyValueStore, ValueAndTimestamp}
 
 import scala.collection.mutable.ArrayBuffer
 
@@ -10,17 +10,20 @@ import scala.collection.mutable.ArrayBuffer
 case class AnimalFeederValueTransformer(zooAnimalStateStoreName: String, animalCaloriesCountStoreName: String)
     extends ValueTransformer[FoodValue, OutputValue] {
 
+  var processorContext: ProcessorContext = _
   var zooAnimalStateStore: TimestampedKeyValueStore[ZooIdAnimalId, AnimalValue] = _
-  var animalCalorieFillStateStore: KeyValueStore[AnimalKey, AnimalCalorieFill] = _
+  var animalCalorieFillStateStore: TimestampedKeyValueStore[AnimalKey, AnimalCalorieFill] = _
 
   override def init(context: ProcessorContext): Unit = {
+    processorContext = context
+
     zooAnimalStateStore = context
       .getStateStore(zooAnimalStateStoreName)
       .asInstanceOf[TimestampedKeyValueStore[ZooIdAnimalId, AnimalValue]]
 
     animalCalorieFillStateStore = context
       .getStateStore(animalCaloriesCountStoreName)
-      .asInstanceOf[KeyValueStore[AnimalKey, AnimalCalorieFill]]
+      .asInstanceOf[TimestampedKeyValueStore[AnimalKey, AnimalCalorieFill]]
 
     println(s"************ show me what you got already")
     // TODO: so this is where I fail, makes sense
@@ -33,10 +36,13 @@ case class AnimalFeederValueTransformer(zooAnimalStateStoreName: String, animalC
     val selectedAnimal = zooIdAnimals.head
     val animalId = selectedAnimal.animalId
     val animalKey = AnimalKey(animalId)
-    val currentCalorieFill = Option(animalCalorieFillStateStore.get(animalKey)).map(_.fill).getOrElse(0)
+    val currentCalorieFill = Option(animalCalorieFillStateStore.get(animalKey)).map(_.value().fill).getOrElse(0)
     val newCalorieFill = currentCalorieFill + value.calories
     if (newCalorieFill <= selectedAnimal.maxCalories) {
-      animalCalorieFillStateStore.put(animalKey, AnimalCalorieFill(newCalorieFill))
+      animalCalorieFillStateStore.put(
+        animalKey,
+        ValueAndTimestamp.make(AnimalCalorieFill(newCalorieFill), processorContext.timestamp)
+      )
       OutputValue(value.foodId, value.zooId, value.calories, animalId, newCalorieFill)
     } else {
       OutputValue(value.foodId, value.zooId, value.calories, -1, 0)
