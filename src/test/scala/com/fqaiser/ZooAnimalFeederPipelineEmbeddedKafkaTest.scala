@@ -7,7 +7,7 @@ import org.apache.kafka.clients.producer.{KafkaProducer, ProducerConfig, Produce
 import org.apache.kafka.common.serialization.{Deserializer, Serializer}
 import org.apache.kafka.streams.{KafkaStreams, KeyValue, StreamsConfig}
 import org.awaitility.scala.AwaitilitySupport
-import org.scalatest.BeforeAndAfterAll
+import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
 import org.scalatest.compatible.Assertion
 import org.scalatest.featurespec.AnyFeatureSpec
 import org.scalatest.matchers.should.Matchers
@@ -22,7 +22,7 @@ import scala.jdk.CollectionConverters.IterableHasAsScala
 class ZooAnimalFeederPipelineEmbeddedKafkaTest
     extends AnyFeatureSpec
     with Matchers
-    with BeforeAndAfterAll
+    with BeforeAndAfterEach
     with AwaitilitySupport {
 
   val animalId1 = 1
@@ -36,26 +36,32 @@ class ZooAnimalFeederPipelineEmbeddedKafkaTest
   val schemaRegistry = new SchemaRegistryContainer(confluentVersion)
   val kafka = new KafkaContainer(DockerImageName.parse(s"confluentinc/cp-kafka:$confluentVersion"))
 
-  override def beforeAll(): Unit = {
-    super.beforeAll()
+  override def beforeEach(): Unit = {
+    super.beforeEach()
     kafka.start()
   }
 
-  override def afterAll(): Unit = {
+  override def afterEach(): Unit = {
     kafka.stop()
-    super.afterAll()
+    super.afterEach()
   }
 
-  object TestAdminClient {
+  case class TestAdminClient() {
     private val adminClientConfigs = {
       val props = new Properties()
       props.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, kafka.getBootstrapServers)
       props
     }
-    private val adminClient: AdminClient =
+    val adminClient: AdminClient =
       AdminClient.create(adminClientConfigs)
 
     private val replicationFactor = 1.toShort
+
+    def createTopic[K, V](testInputTopic: TestInputTopic[K, V]): Unit =
+      createTopic(testInputTopic.topicName, testInputTopic.numPartitions)
+
+    def createTopic[K, V](testOutputTopic: TestOutputTopic[K, V]): Unit =
+      createTopic(testOutputTopic.topicName, testOutputTopic.numPartitions)
 
     def createTopic(topicName: String, numPartitions: Int = 1): Unit =
       adminClient
@@ -73,7 +79,7 @@ class ZooAnimalFeederPipelineEmbeddedKafkaTest
   ) {
 
     // create topic during construction of instance
-    TestAdminClient.createTopic(topicName, numPartitions)
+    TestAdminClient().createTopic(this)
 
     val producerProps: Properties = {
       val props = new Properties()
@@ -95,7 +101,7 @@ class ZooAnimalFeederPipelineEmbeddedKafkaTest
   ) {
 
     // create topic during construction of instance
-    TestAdminClient.createTopic(topicName, numPartitions)
+    TestAdminClient().createTopic(this)
 
     private val consumerProps = {
       val props = new Properties()
@@ -117,12 +123,16 @@ class ZooAnimalFeederPipelineEmbeddedKafkaTest
 
   private type testFn = (
       KafkaStreams,
+      TestAdminClient,
       TestInputTopic[AnimalKey, AnimalValue],
       TestInputTopic[FoodKey, FoodValue],
       TestOutputTopic[OutputKey, OutputValue]
   ) => Assertion
 
-  private def runTest(testFunction: testFn): Unit = {
+  private def runKafkaTest(
+      testFunction: testFn,
+      preStartActions: (ZooAnimalFeederPipeline, TestAdminClient) => Unit = (_, _) => ()
+  ): Unit = {
     val animalsTopicName = "animalsTopic"
     val foodTopicName = "foodTopic"
     val outputTopicName = "outputTopic"
@@ -164,10 +174,14 @@ class ZooAnimalFeederPipelineEmbeddedKafkaTest
       factory.outputKeySerde.deserializer(),
       factory.outputValueSerde.deserializer()
     )
+
+    val adminClient = TestAdminClient()
+
     try {
       kafkaStreams.cleanUp()
+      preStartActions(factory, adminClient)
       kafkaStreams.start()
-      testFunction(kafkaStreams, animalsTopic, foodTopic, outputTopic)
+      testFunction(kafkaStreams, adminClient, animalsTopic, foodTopic, outputTopic)
     } finally {
       kafkaStreams.close()
     }
@@ -187,7 +201,7 @@ class ZooAnimalFeederPipelineEmbeddedKafkaTest
 
   Feature("") {
     Scenario("1 animal created, 1 food parcel of 1 calorie arrives") {
-      runTest { (stream, animalTopic, foodTopic, outputTopic) =>
+      runKafkaTest { (stream, adminClient, animalTopic, foodTopic, outputTopic) =>
         val animalKey = AnimalKey(animalId1)
         val animalValue = AnimalValue(animalId1, zooId1, maxCalories)
         animalTopic.pipeInput(animalKey, animalValue, partition = 1)
@@ -209,8 +223,45 @@ class ZooAnimalFeederPipelineEmbeddedKafkaTest
   }
 
   Feature("Preseed state store changelog topic with some state") {
-    Scenario("1 animal with existing calorie fill") {
-      ???
+    Scenario("1 animal with existing calorie fill, single partitioned topics") {
+      val initialCalorieFill = 3
+
+      runKafkaTest(
+        (stream, adminClient, animalTopic, foodTopic, outputTopic) => {
+          val animalKey = AnimalKey(animalId1)
+          val animalValue = AnimalValue(animalId1, zooId1, maxCalories)
+          animalTopic.pipeInput(animalKey, animalValue, partition = 1)
+
+          // sleep to avoid situation where food goes to streams app before the animal exists in the state store
+          Thread.sleep(5000)
+
+          val foodKey = FoodKey(foodId1)
+          val foodValue = FoodValue(foodId1, zooId1, calories1)
+          foodTopic.pipeInput(foodKey, foodValue, partition = 1)
+
+          val expected = Seq(
+            new KeyValue(
+              OutputKey(foodId1),
+              OutputValue(foodId1, zooId1, calories1, animalId1, initialCalorieFill + calories1)
+            )
+          )
+
+          println(s"listTopics: ${adminClient.adminClient.listTopics().names().get().asScala.mkString(",")}")
+
+          outputTopicShouldContainTheSameElementsAs(outputTopic, expected)
+        },
+        (factory, adminClient: TestAdminClient) => {
+          val stateStoreTopic = "test-animalCaloriesCount-changelog"
+          val changeLogTopic = TestInputTopic(
+            stateStoreTopic,
+            1,
+            factory.animalKeySerde.serializer(),
+            factory.animalCalorieFillSerde.serializer()
+          )
+          changeLogTopic.pipeInput(AnimalKey(animalId1), AnimalCalorieFill(initialCalorieFill), 1)
+          // seed some data
+        }
+      )
     }
 
     Scenario("1 animal with existing calorie fill and 1 new animal comes in") {

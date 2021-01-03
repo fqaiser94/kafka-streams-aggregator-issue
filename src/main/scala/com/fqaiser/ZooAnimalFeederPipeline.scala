@@ -34,7 +34,7 @@ case class ZooAnimalFeederPipeline(
   private val zooIdAnimalIdSerde =
     SerdeUtils.ccSerde[ZooIdAnimalId](schemaRegistryUrl, schemaRegistryClient, isKey = true)
 
-  private val animalCalorieFillSerde =
+  val animalCalorieFillSerde =
     SerdeUtils.ccSerde[AnimalCalorieFill](schemaRegistryUrl, schemaRegistryClient, isKey = false)
 
   private case class ZooId(zooId: Int)
