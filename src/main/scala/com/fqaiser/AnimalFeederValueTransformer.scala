@@ -21,6 +21,11 @@ case class AnimalFeederValueTransformer(zooAnimalStateStoreName: String, animalC
     animalCalorieFillStateStore = context
       .getStateStore(animalCaloriesCountStoreName)
       .asInstanceOf[KeyValueStore[AnimalKey, AnimalCalorieFill]]
+
+    println(s"************ show me what you got already")
+    // TODO: so this is where I fail, makes sense
+    animalCalorieFillStateStore.all().forEachRemaining(x => println(x))
+    println()
   }
 
   override def transform(value: FoodValue): OutputValue = {
