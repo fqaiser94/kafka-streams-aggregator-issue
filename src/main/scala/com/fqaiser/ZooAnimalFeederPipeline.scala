@@ -32,11 +32,11 @@ case class ZooAnimalFeederPipeline(
   val outputKeySerde: SpecificAvroSerde[OutputKey] = specificRecordSerde[OutputKey](isKey = true)
   val outputValueSerde: SpecificAvroSerde[OutputValue] = specificRecordSerde[OutputValue](isKey = false)
 
+  val animalCalorieFillSerde: SpecificAvroSerde[AnimalCalorieFill] =
+    specificRecordSerde[AnimalCalorieFill](isKey = false)
+
   private val zooIdAnimalIdSerde =
     SerdeUtils.ccSerde[ZooIdAnimalId](schemaRegistryUrl, schemaRegistryClient, isKey = true)
-
-  val animalCalorieFillSerde: Serde[AnimalCalorieFill] =
-    SerdeUtils.ccSerde[AnimalCalorieFill](schemaRegistryUrl, schemaRegistryClient, isKey = false)
 
   private case class ZooId(zooId: Int)
   private val zooIdSerde =
@@ -73,7 +73,7 @@ case class ZooAnimalFeederPipeline(
     val animalCaloriesCountStoreName: String = "animalCaloriesCount"
     val animalCaloriesCountStoreBuilder = Stores
       .keyValueStoreBuilder(
-        Stores.persistentTimestampedKeyValueStore(animalCaloriesCountStoreName),
+        Stores.persistentKeyValueStore(animalCaloriesCountStoreName),
         // humm shouldn't this be partitioned by zooId animalId as well? otherwise how do we know it's the correct
         // partition is there for the stream-task to work on?
         animalKeySerde,

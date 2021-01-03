@@ -291,8 +291,6 @@ class ZooAnimalFeederPipelineEmbeddedKafkaTest
           println(factory.schemaRegistryClient.getAllSubjects)
           println(factory.schemaRegistryClient.getSchemaById(1))
           println(factory.schemaRegistryClient.getSchemaById(2))
-          println(factory.schemaRegistryClient.getAllVersions("test-animalCaloriesCount-changelog-key"))
-          println(factory.schemaRegistryClient.getAllVersions("test-animalCaloriesCount-changelog-value"))
         }
       )
     }

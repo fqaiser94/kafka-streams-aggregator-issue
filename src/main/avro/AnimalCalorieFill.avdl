@@ -1,0 +1,7 @@
+@namespace("com.fqaiser")
+protocol AnimalCalorieFillProtocol {
+  record AnimalCalorieFill {
+  /** The current calorie fill of the animal. */
+    int fill;
+  }
+}
