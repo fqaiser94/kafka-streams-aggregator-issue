@@ -79,6 +79,7 @@ object SerdeUtils {
 
     override def close(): Unit = serializer.close()
 
+    // TODO: can't serialize null data. not good.
     override def serialize(topic: String, data: CC): Array[Byte] = {
       val recordFormat = implicitly[RecordFormat[CC]]
       val record = recordFormat.to(data)

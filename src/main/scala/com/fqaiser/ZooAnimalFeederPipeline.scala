@@ -3,6 +3,7 @@ package com.fqaiser
 import io.confluent.kafka.schemaregistry.client.SchemaRegistryClient
 import io.confluent.kafka.streams.serdes.avro.SpecificAvroSerde
 import org.apache.avro.specific.SpecificRecord
+import org.apache.kafka.common.serialization.Serde
 import org.apache.kafka.streams.Topology
 import org.apache.kafka.streams.scala.StreamsBuilder
 import org.apache.kafka.streams.scala.kstream._
@@ -34,7 +35,7 @@ case class ZooAnimalFeederPipeline(
   private val zooIdAnimalIdSerde =
     SerdeUtils.ccSerde[ZooIdAnimalId](schemaRegistryUrl, schemaRegistryClient, isKey = true)
 
-  val animalCalorieFillSerde =
+  val animalCalorieFillSerde: Serde[AnimalCalorieFill] =
     SerdeUtils.ccSerde[AnimalCalorieFill](schemaRegistryUrl, schemaRegistryClient, isKey = false)
 
   private case class ZooId(zooId: Int)
