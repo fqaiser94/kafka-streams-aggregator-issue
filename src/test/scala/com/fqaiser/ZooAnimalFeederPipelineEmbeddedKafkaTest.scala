@@ -1,7 +1,7 @@
 package com.fqaiser
 
 import io.confluent.kafka.schemaregistry.client.{MockSchemaRegistryClient, SchemaRegistryClient}
-import org.apache.kafka.clients.admin.{AdminClient, AdminClientConfig, NewTopic}
+import org.apache.kafka.clients.admin.{AdminClient, AdminClientConfig, CreateTopicsResult, NewTopic}
 import org.apache.kafka.clients.consumer.{ConsumerConfig, KafkaConsumer}
 import org.apache.kafka.clients.producer.{KafkaProducer, ProducerConfig, ProducerRecord}
 import org.apache.kafka.common.serialization.{Deserializer, Serializer}
@@ -46,7 +46,35 @@ class ZooAnimalFeederPipelineEmbeddedKafkaTest
     super.afterAll()
   }
 
-  case class TestInputTopic[K, V](topicName: String, keySerializer: Serializer[K], valueSerializer: Serializer[V]) {
+  object TestAdminClient {
+    private val adminClientConfigs = {
+      val props = new Properties()
+      props.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, kafka.getBootstrapServers)
+      props
+    }
+    private val adminClient: AdminClient =
+      AdminClient.create(adminClientConfigs)
+
+    private val replicationFactor = 1.toShort
+
+    def createTopic(topicName: String, numPartitions: Int = 1): Unit =
+      adminClient
+        .createTopics(util.Collections.singletonList(new NewTopic(topicName, numPartitions, replicationFactor)))
+        .all()
+        // get call is to ensure that the topic is created before moving on from this method
+        .get()
+  }
+
+  case class TestInputTopic[K, V](
+      topicName: String,
+      numPartitions: Int,
+      keySerializer: Serializer[K],
+      valueSerializer: Serializer[V]
+  ) {
+
+    // create topic during construction of instance
+    TestAdminClient.createTopic(topicName, numPartitions)
+
     val producerProps: Properties = {
       val props = new Properties()
       props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, kafka.getBootstrapServers)
@@ -55,25 +83,20 @@ class ZooAnimalFeederPipelineEmbeddedKafkaTest
     }
     private val kafkaProducer = new KafkaProducer[K, V](producerProps, keySerializer, valueSerializer)
 
-    private val adminClient: AdminClient = {
-      val adminClientConfigs = {
-        val props = new Properties()
-        props.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, kafka.getBootstrapServers)
-        props
-      }
-      AdminClient.create(adminClientConfigs)
-    }
-    // TODO: expose numPartitions in constructor
-    adminClient.createTopics(util.Collections.singletonList(new NewTopic(topicName, 1, 1.toShort)))
-
-    def pipeInput(k: K, v: V): Unit = kafkaProducer.send(new ProducerRecord(topicName, k, v)).get()
+    def pipeInput(k: K, v: V, partition: Int): Unit =
+      kafkaProducer.send(new ProducerRecord(topicName, partition, k, v)).get()
   }
 
   case class TestOutputTopic[K, V](
       topicName: String,
+      numPartitions: Int,
       keyDeserializer: Deserializer[K],
       valueDeserializer: Deserializer[V]
   ) {
+
+    // create topic during construction of instance
+    TestAdminClient.createTopic(topicName, numPartitions)
+
     private val consumerProps = {
       val props = new Properties()
       props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, kafka.getBootstrapServers)
@@ -81,17 +104,6 @@ class ZooAnimalFeederPipelineEmbeddedKafkaTest
       props
     }
     private val consumer = new KafkaConsumer[K, V](consumerProps, keyDeserializer, valueDeserializer)
-
-    private val adminClient: AdminClient = {
-      val adminClientConfigs = {
-        val props = new Properties()
-        props.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, kafka.getBootstrapServers)
-        props
-      }
-      AdminClient.create(adminClientConfigs)
-    }
-    // TODO: expose numPartitions in constructor
-    adminClient.createTopics(util.Collections.singletonList(new NewTopic(topicName, 1, 1.toShort)))
 
     // TODO: use awaitility
     def readKeyValuesToList(): List[KeyValue[K, V]] = {
@@ -136,16 +148,19 @@ class ZooAnimalFeederPipelineEmbeddedKafkaTest
 
     val animalsTopic = TestInputTopic[AnimalKey, AnimalValue](
       animalsTopicName,
+      2,
       factory.animalKeySerde.serializer,
       factory.animalValueSerde.serializer
     )
     val foodTopic = TestInputTopic[FoodKey, FoodValue](
       foodTopicName,
+      2,
       factory.foodKeySerde.serializer,
       factory.foodValueSerde.serializer
     )
     val outputTopic = TestOutputTopic[OutputKey, OutputValue](
       outputTopicName,
+      2,
       factory.outputKeySerde.deserializer(),
       factory.outputValueSerde.deserializer()
     )
@@ -172,16 +187,17 @@ class ZooAnimalFeederPipelineEmbeddedKafkaTest
 
   Feature("") {
     Scenario("1 animal created, 1 food parcel of 1 calorie arrives") {
-      runTest { (testDriver, animalTopic, foodTopic, outputTopic) =>
+      runTest { (stream, animalTopic, foodTopic, outputTopic) =>
         val animalKey = AnimalKey(animalId1)
         val animalValue = AnimalValue(animalId1, zooId1, maxCalories)
-        animalTopic.pipeInput(animalKey, animalValue)
+        animalTopic.pipeInput(animalKey, animalValue, partition = 1)
 
+        // sleep to avoid situation where food goes to streams app before the animal exists in the state store
         Thread.sleep(5000)
 
         val foodKey = FoodKey(foodId1)
         val foodValue = FoodValue(foodId1, zooId1, calories1)
-        foodTopic.pipeInput(foodKey, foodValue)
+        foodTopic.pipeInput(foodKey, foodValue, partition = 1)
 
         val expected = Seq(
           new KeyValue(OutputKey(foodId1), OutputValue(foodId1, zooId1, calories1, animalId1, calories1))
