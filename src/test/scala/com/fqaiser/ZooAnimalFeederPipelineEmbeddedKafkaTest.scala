@@ -274,26 +274,33 @@ class ZooAnimalFeederPipelineEmbeddedKafkaTest
           outputTopicShouldContainTheSameElementsAs(outputTopic, expected)
         },
         (factory, adminClient: TestAdminClient) => {
-          val stateStoreTopic = "test-animalCaloriesCount-changelog"
+          val changeLogTopicName = "test-animalCaloriesCount-changelog"
+          val numPartitions = 2
           val changeLogTopic = TestInputTopic(
-            stateStoreTopic,
-            2,
-            factory.animalKeySerde.serializer(),
+            changeLogTopicName,
+            numPartitions,
+            factory.zooIdAnimalIdSerde.serializer(),
             factory.animalCalorieFillSerde.serializer()
           )
-          changeLogTopic.pipeInput(AnimalKey(animalId1), AnimalCalorieFill(initialCalorieFill))
+          val key = ZooIdAnimalId(zooId1, animalId1)
+          val value = AnimalCalorieFill(initialCalorieFill)
+          val zooIdPartitioner = ZooIdPartitioner[ZooIdAnimalId, AnimalCalorieFill](_.zooId)
+          changeLogTopic.pipeInput(
+            key,
+            value,
+            zooIdPartitioner.partition(changeLogTopicName, key, value, numPartitions)
+          )
         }
       )
     }
 
     Scenario("try to prove we need to partition by zooId") {
-      val initialCalorieFill = 3
-
       val animalId = 4
-      val animalKey = AnimalKey(animalId)
+      val initialCalorieFill = 3
 
       runKafkaTest(
         (stream, adminClient, schemaRegistryClient, animalTopic, foodTopic, outputTopic) => {
+          val animalKey = AnimalKey(animalId)
           val animalValue = AnimalValue(animalId, zooId1, maxCalories)
           animalTopic.pipeInput(animalKey, animalValue)
 
@@ -314,14 +321,22 @@ class ZooAnimalFeederPipelineEmbeddedKafkaTest
           outputTopicShouldContainTheSameElementsAs(outputTopic, expected)
         },
         (factory, adminClient: TestAdminClient) => {
-          val stateStoreTopic = "test-animalCaloriesCount-changelog"
+          val changeLogTopicName = "test-animalCaloriesCount-changelog"
+          val numPartitions = 2
           val changeLogTopic = TestInputTopic(
-            stateStoreTopic,
-            2,
-            factory.animalKeySerde.serializer(),
+            changeLogTopicName,
+            numPartitions,
+            factory.zooIdAnimalIdSerde.serializer(),
             factory.animalCalorieFillSerde.serializer()
           )
-          changeLogTopic.pipeInput(animalKey, AnimalCalorieFill(initialCalorieFill))
+          val key = ZooIdAnimalId(zooId1, animalId)
+          val value = AnimalCalorieFill(initialCalorieFill)
+          val zooIdPartitioner = ZooIdPartitioner[ZooIdAnimalId, AnimalCalorieFill](_.zooId)
+          changeLogTopic.pipeInput(
+            key,
+            value,
+            zooIdPartitioner.partition(changeLogTopicName, key, value, numPartitions)
+          )
         }
       )
     }
@@ -329,6 +344,9 @@ class ZooAnimalFeederPipelineEmbeddedKafkaTest
     Scenario("1 animal with existing calorie fill and 1 new animal comes in") {
       ???
     }
+
+    // TODO: What if i precreate the changelog topic with more partitions than the input topics?
+    // does it throw an error? or does it repartition to the higher number of partitions.
   }
 
 }

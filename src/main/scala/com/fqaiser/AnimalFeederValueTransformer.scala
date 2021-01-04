@@ -12,7 +12,7 @@ case class AnimalFeederValueTransformer(zooAnimalStateStoreName: String, animalC
 
   var processorContext: ProcessorContext = _
   var zooAnimalStateStore: TimestampedKeyValueStore[ZooIdAnimalId, AnimalValue] = _
-  var animalCalorieFillStateStore: TimestampedKeyValueStore[AnimalKey, AnimalCalorieFill] = _
+  var animalCalorieFillStateStore: TimestampedKeyValueStore[ZooIdAnimalId, AnimalCalorieFill] = _
 
   override def init(context: ProcessorContext): Unit = {
     processorContext = context
@@ -23,21 +23,17 @@ case class AnimalFeederValueTransformer(zooAnimalStateStoreName: String, animalC
 
     animalCalorieFillStateStore = context
       .getStateStore(animalCaloriesCountStoreName)
-      .asInstanceOf[TimestampedKeyValueStore[AnimalKey, AnimalCalorieFill]]
-
-    println(s"************ show me what you got already")
-    // TODO: so this is where I fail, makes sense
-    animalCalorieFillStateStore.all().forEachRemaining(x => println(x))
-    println()
+      .asInstanceOf[TimestampedKeyValueStore[ZooIdAnimalId, AnimalCalorieFill]]
   }
 
   override def transform(value: FoodValue): OutputValue = {
     val zooIdAnimals = getAnimals(value.zooId)
     val selectedAnimal = zooIdAnimals.head
     val animalId = selectedAnimal.animalId
-    val animalKey = AnimalKey(animalId)
+    val animalKey = ZooIdAnimalId(value.zooId, animalId)
     val currentCalorieFill = Option(animalCalorieFillStateStore.get(animalKey)).map(_.value().fill).getOrElse(0)
     val newCalorieFill = currentCalorieFill + value.calories
+    // TODO: should we call processorContext.commit()? what does that even do?
     if (newCalorieFill <= selectedAnimal.maxCalories) {
       animalCalorieFillStateStore.put(
         animalKey,
