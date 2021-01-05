@@ -1,5 +1,6 @@
 package com.fqaiser
 
+import com.fqaiser.serde.SerdeUtils
 import io.confluent.kafka.schemaregistry.client.SchemaRegistryClient
 import io.confluent.kafka.streams.serdes.avro.SpecificAvroSerde
 import org.apache.avro.specific.SpecificRecord
