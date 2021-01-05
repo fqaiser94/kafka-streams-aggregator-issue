@@ -74,11 +74,10 @@ case class ZooAnimalFeederPipeline(
     val animalCaloriesCountStoreBuilder = Stores
       .timestampedKeyValueStoreBuilder(
         Stores.persistentTimestampedKeyValueStore(animalCaloriesCountStoreName),
-        // TODO: humm shouldn't this be partitioned by zooId animalId as well? otherwise how do we know it's the correct
-        // partition is there for the stream-task to work on?
-        // We use zooIdAnimalId instead of just animalId here
-        // because we want to be able to be prepoulate the state store and each partition
-        // should only animals for the given zooId.
+        // We use `zooIdAnimalId` instead of just `animalId` as the key
+        // The reason for this is b/c we want to partition the state store by zooId Int
+        // This enables us to easily pre-populate the state store with only (animal) data on each partition for
+        // the relevant zooIds.
         zooIdAnimalIdSerde,
         animalCalorieFillSerde
       )
