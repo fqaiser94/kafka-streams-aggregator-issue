@@ -2,7 +2,10 @@ package com.fqaiser
 
 import org.scalatest.Assertion
 import org.scalatest.featurespec.AnyFeatureSpec
+import org.scalatest.matchers.must.Matchers.be
 import org.scalatest.matchers.should.Matchers
+
+import scala.collection.mutable.ArrayBuffer
 
 object ZooIdPartitionerTest {
 
@@ -34,20 +37,16 @@ class ZooIdPartitionerTest extends AnyFeatureSpec with Matchers {
     }
   }
 
-  private type Expectation = Integer => Assertion
-  private def runForRangeOfZooIds(numPartitions: Int, expectations: Seq[Expectation]): Unit = {
-    (1 to 1000).foreach { zooId =>
+  private def doForRangeOfZooIds[T](rangeOfZooIds: Seq[Int], numPartitions: Int, whatToDo: Integer => T): Unit = {
+    rangeOfZooIds.foreach { zooId =>
       val result = zooIdPartitioner.partition(topic, ZooKey(zooId), ZooValue(), numPartitions).toInt
-      expectations.foreach(_(result))
+      whatToDo(result)
     }
   }
 
   Feature("partition should always return a value between 0 and (numPartitions - 1)") {
     def checkZooIdAlwaysWithinExpectedRange(numPartitions: Int): Unit = {
-      runForRangeOfZooIds(numPartitions, Seq(
-        x => x.toInt should be >= 0,
-        x => x.toInt should be <= (numPartitions - 1)
-      ))
+      doForRangeOfZooIds(1 to 1000, numPartitions, x => x.toInt should (be >= (0) and be <= (numPartitions - 1)))
     }
 
     Seq(1, 2, 8, 16).foreach { numPartitions =>
@@ -59,7 +58,25 @@ class ZooIdPartitionerTest extends AnyFeatureSpec with Matchers {
 
   Feature("partition return value should be evenly distributed over a range of zooIds") {
     Scenario("???") {
+      val rangeOfZooIds = 1 to 1000000
+      val numPartitions = 8
+      var partitionValues = ArrayBuffer.empty[Int]
+      doForRangeOfZooIds(
+        rangeOfZooIds = rangeOfZooIds,
+        numPartitions = numPartitions,
+        whatToDo = x => partitionValues = partitionValues.append(x.toInt)
+      )
 
+      partitionValues
+        .groupBy(identity)
+        .view
+        // calculate number of occurences
+        .mapValues(_.size)
+        // calculate percentage of total
+        .mapValues(x => ((x.toDouble / rangeOfZooIds.size.toDouble) * 100.0).toInt)
+        .map { case (k, v) => println(s"$k:$v"); (k, v) }
+        .map { case (k, v) => v }
+        .foreach(x => x shouldEqual(100 / numPartitions))
     }
   }
 
