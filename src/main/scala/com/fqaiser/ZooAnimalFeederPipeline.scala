@@ -15,7 +15,8 @@ import java.util
 case class ZooAnimalFeederPipeline(
     animalsTopicName: String,
     foodTopicName: String,
-    outputTopicName: String,
+    processedFoodTopicName: String,
+    animalStatusTopicName: String,
     schemaRegistryUrl: String,
     schemaRegistryClient: SchemaRegistryClient
 ) {
@@ -30,8 +31,8 @@ case class ZooAnimalFeederPipeline(
   val animalValueSerde: SpecificAvroSerde[AnimalValue] =
     specificRecordSerde[AnimalValue](isKey = false)
 
-  val outputKeySerde: SpecificAvroSerde[OutputKey] = specificRecordSerde[OutputKey](isKey = true)
-  val outputValueSerde: SpecificAvroSerde[OutputValue] = specificRecordSerde[OutputValue](isKey = false)
+  val processedFoodKeySerde: SpecificAvroSerde[OutputKey] = specificRecordSerde[OutputKey](isKey = true)
+  val processedFoodValueSerde: SpecificAvroSerde[OutputValue] = specificRecordSerde[OutputValue](isKey = false)
 
   val animalCalorieFillSerde: SpecificAvroSerde[AnimalCalorieFill] =
     specificRecordSerde[AnimalCalorieFill](isKey = false)
@@ -42,6 +43,9 @@ case class ZooAnimalFeederPipeline(
   private case class ZooId(zooId: Int)
   private val zooIdSerde =
     SerdeUtils.ccSerde[ZooId](schemaRegistryUrl, schemaRegistryClient, isKey = true)
+
+  val animalStatusKeySerde = specificRecordSerde[AnimalStatusKey](isKey = true)
+  val animalStatusValueSerde = specificRecordSerde[AnimalCalorieFill](isKey = false)
 
   def topology: Topology = {
     val streamsBuilder = new StreamsBuilder()
@@ -85,15 +89,23 @@ case class ZooAnimalFeederPipeline(
 
     streamsBuilder.addStateStore(animalCaloriesCountStoreBuilder)
 
-    val output: KStream[OutputKey, OutputValue] = food
+    val processed = food
       .transformValues(
         () => AnimalFeederValueTransformer(zooAnimalsTable.queryableStoreName, animalCaloriesCountStoreName),
         zooAnimalsTable.queryableStoreName,
         animalCaloriesCountStoreName
       )
-      .selectKey((k, v) => OutputKey(v.foodId))
 
-    output.to(outputTopicName)(Produced.`with`(outputKeySerde, outputValueSerde))
+    processed
+      .selectKey((k, v) => OutputKey(v.outputValue.foodId))
+      .mapValues((k, v) => v.outputValue)
+      .to(processedFoodTopicName)(Produced.`with`(processedFoodKeySerde, processedFoodValueSerde))
+
+    processed
+      .filter((k, v) => v.stateStoreValue.isDefined)
+      .mapValues(_.stateStoreValue.get)
+      .map((k, v) => (AnimalStatusKey(v._1.zooId, v._1.animalId), v._2))
+      .to(animalStatusTopicName)(Produced.`with`(animalStatusKeySerde, animalStatusValueSerde))
 
     streamsBuilder.build()
   }

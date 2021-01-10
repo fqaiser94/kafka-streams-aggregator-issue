@@ -3,12 +3,16 @@ package com.fqaiser
 import org.apache.kafka.streams.kstream.ValueTransformer
 import org.apache.kafka.streams.processor.ProcessorContext
 import org.apache.kafka.streams.state.{KeyValueStore, TimestampedKeyValueStore, ValueAndTimestamp}
-
+import AnimalFeederValueTransformer.Temp
 import scala.collection.mutable.ArrayBuffer
 
-// TODO: test
+object AnimalFeederValueTransformer {
+  final case class Temp(stateStoreValue: Option[(ZooIdAnimalId, AnimalCalorieFill)], outputValue: OutputValue)
+}
+
+// TODO: unit test
 case class AnimalFeederValueTransformer(zooAnimalStateStoreName: String, animalCaloriesCountStoreName: String)
-    extends ValueTransformer[FoodValue, OutputValue] {
+    extends ValueTransformer[FoodValue, Temp] {
 
   var processorContext: ProcessorContext = _
   var zooAnimalStateStore: TimestampedKeyValueStore[ZooIdAnimalId, AnimalValue] = _
@@ -26,22 +30,31 @@ case class AnimalFeederValueTransformer(zooAnimalStateStoreName: String, animalC
       .asInstanceOf[TimestampedKeyValueStore[ZooIdAnimalId, AnimalCalorieFill]]
   }
 
-  override def transform(value: FoodValue): OutputValue = {
+  override def transform(value: FoodValue): Temp = {
     val zooIdAnimals = getAnimals(value.zooId)
     val selectedAnimal = zooIdAnimals.head
     val animalId = selectedAnimal.animalId
     val animalKey = ZooIdAnimalId(value.zooId, animalId)
-    val currentCalorieFill = Option(animalCalorieFillStateStore.get(animalKey)).map(_.value().fill).getOrElse(0)
+    val maybeCurrentAnimalCalorieFill = Option(animalCalorieFillStateStore.get(animalKey)).map(_.value())
+    val currentCalorieFill = maybeCurrentAnimalCalorieFill.map(_.fill).getOrElse(0)
     val newCalorieFill = currentCalorieFill + value.calories
+
+    val animalCalorieFill = AnimalCalorieFill(newCalorieFill)
     // TODO: should we call processorContext.commit()? what does that even do?
     if (newCalorieFill <= selectedAnimal.maxCalories) {
       animalCalorieFillStateStore.put(
         animalKey,
-        ValueAndTimestamp.make(AnimalCalorieFill(newCalorieFill), processorContext.timestamp)
+        ValueAndTimestamp.make(animalCalorieFill, processorContext.timestamp)
       )
-      OutputValue(value.foodId, value.zooId, value.calories, animalId, newCalorieFill)
+      Temp(
+        Some((animalKey, animalCalorieFill)),
+        OutputValue(value.foodId, value.zooId, value.calories, animalId, newCalorieFill)
+      )
     } else {
-      OutputValue(value.foodId, value.zooId, value.calories, -1, 0)
+      Temp(
+        maybeCurrentAnimalCalorieFill.map(v => (animalKey, v)),
+        OutputValue(value.foodId, value.zooId, value.calories, -1, 0)
+      )
     }
   }
 

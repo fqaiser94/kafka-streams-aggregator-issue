@@ -29,20 +29,23 @@ class ZooAnimalFeederPipelineTest extends AnyFeatureSpec with Matchers {
       TopologyTestDriver,
       TestInputTopic[AnimalKey, AnimalValue],
       TestInputTopic[FoodKey, FoodValue],
-      TestOutputTopic[OutputKey, OutputValue]
+      TestOutputTopic[OutputKey, OutputValue],
+      TestOutputTopic[AnimalStatusKey, AnimalCalorieFill]
   ) => Assertion
 
   private def runTest(testFunction: testFn): Unit = {
     val animalsTopicName = "animalsTopic"
     val foodTopicName = "foodTopic"
-    val outputTopicName = "outputTopic"
+    val processedTopicName = "processedFoodTopic"
+    val animalStatusTopicName = "animalStatusTopic"
 
     val schemaRegistryClient: SchemaRegistryClient = new MockSchemaRegistryClient()
     val schemaRegistryUrl: String = "mockUrl"
     val factory = ZooAnimalFeederPipeline(
       animalsTopicName,
       foodTopicName,
-      outputTopicName,
+      processedTopicName,
+      animalStatusTopicName,
       schemaRegistryUrl,
       schemaRegistryClient
     )
@@ -62,23 +65,28 @@ class ZooAnimalFeederPipelineTest extends AnyFeatureSpec with Matchers {
       factory.foodKeySerde.serializer,
       factory.foodValueSerde.serializer
     )
-    val outputTopic = testDriver.createOutputTopic(
-      outputTopicName,
-      factory.outputKeySerde.deserializer(),
-      factory.outputValueSerde.deserializer()
+    val processedFoodTopic = testDriver.createOutputTopic(
+      processedTopicName,
+      factory.processedFoodKeySerde.deserializer(),
+      factory.processedFoodValueSerde.deserializer()
+    )
+    val animalStatusTopic = testDriver.createOutputTopic(
+      animalStatusTopicName,
+      factory.animalStatusKeySerde.deserializer(),
+      factory.animalStatusValueSerde.deserializer()
     )
     try {
-      testFunction(testDriver, animalsTopic, foodTopic, outputTopic)
+      testFunction(testDriver, animalsTopic, foodTopic, processedFoodTopic, animalStatusTopic)
     } finally {
       testDriver.close()
     }
   }
 
-  private def outputTopicShouldContainTheSameElementsAs[K, V](
-      outputTopic: TestOutputTopic[K, V],
+  private def topicShouldContainTheSameElementsAs[K, V](
+      topic: TestOutputTopic[K, V],
       expected: Seq[KeyValue[K, V]]
   ): Assertion = {
-    val result = outputTopic.readKeyValuesToList().asScala.toList
+    val result = topic.readKeyValuesToList().asScala.toList
     println("result")
     result.foreach(println)
     println("expected")
@@ -88,19 +96,21 @@ class ZooAnimalFeederPipelineTest extends AnyFeatureSpec with Matchers {
 
   Feature("only one type of animal in a given zoo") {
     Scenario("1 animal created, no food arrives") {
-      runTest { (testDriver, animalTopic, foodTopic, outputTopic) =>
+      runTest { (testDriver, animalTopic, foodTopic, processedFoodTopic, animalStatusTopic) =>
         val animalKey = AnimalKey(animalId1)
         val animalValue = AnimalValue(animalId1, zooId1, maxCalories)
         animalTopic.pipeInput(animalKey, animalValue)
 
-        val expected = Seq.empty
+        val processedFoodExpected = Seq.empty
+        val animalStatusExpected = Seq.empty
 
-        outputTopicShouldContainTheSameElementsAs(outputTopic, expected)
+        topicShouldContainTheSameElementsAs(processedFoodTopic, processedFoodExpected)
+        topicShouldContainTheSameElementsAs(animalStatusTopic, animalStatusExpected)
       }
     }
 
     Scenario("1 animal created, 1 food parcel of 1 calorie arrives") {
-      runTest { (testDriver, animalTopic, foodTopic, outputTopic) =>
+      runTest { (testDriver, animalTopic, foodTopic, processedFoodTopic, animalStatusTopic) =>
         val animalKey = AnimalKey(animalId1)
         val animalValue = AnimalValue(animalId1, zooId1, maxCalories)
         animalTopic.pipeInput(animalKey, animalValue)
@@ -109,16 +119,20 @@ class ZooAnimalFeederPipelineTest extends AnyFeatureSpec with Matchers {
         val foodValue = FoodValue(foodId1, zooId1, calories1)
         foodTopic.pipeInput(foodKey, foodValue)
 
-        val expected = Seq(
+        val processedFoodExpected = Seq(
           new KeyValue(OutputKey(foodId1), OutputValue(foodId1, zooId1, calories1, animalId1, calories1))
         )
+        val animalStatusExpected = Seq(
+          new KeyValue(AnimalStatusKey(zooId1, animalId1), AnimalCalorieFill(calories1))
+        )
 
-        outputTopicShouldContainTheSameElementsAs(outputTopic, expected)
+        topicShouldContainTheSameElementsAs(processedFoodTopic, processedFoodExpected)
+        topicShouldContainTheSameElementsAs(animalStatusTopic, animalStatusExpected)
       }
     }
 
     Scenario("1 animal created, 2 food parcel of 1 calorie each arrive") {
-      runTest { (testDriver, animalTopic, foodTopic, outputTopic) =>
+      runTest { (testDriver, animalTopic, foodTopic, processedFoodTopic, animalStatusTopic) =>
         val animalKey = AnimalKey(animalId1)
         val animalValue = AnimalValue(animalId1, zooId1, maxCalories)
         animalTopic.pipeInput(animalKey, animalValue)
@@ -128,17 +142,22 @@ class ZooAnimalFeederPipelineTest extends AnyFeatureSpec with Matchers {
         foodTopic.pipeInput(foodKey, foodValue)
         foodTopic.pipeInput(foodKey, foodValue)
 
-        val expected = Seq(
+        val processedFoodExpected = Seq(
           new KeyValue(OutputKey(foodId1), OutputValue(foodId1, zooId1, calories1, animalId1, calories1)),
           new KeyValue(OutputKey(foodId1), OutputValue(foodId1, zooId1, calories1, animalId1, calories1 * 2))
         )
+        val animalStatusExpected = Seq(
+          new KeyValue(AnimalStatusKey(zooId1, animalId1), AnimalCalorieFill(calories1)),
+          new KeyValue(AnimalStatusKey(zooId1, animalId1), AnimalCalorieFill(calories1 * 2))
+        )
 
-        outputTopicShouldContainTheSameElementsAs(outputTopic, expected)
+        topicShouldContainTheSameElementsAs(processedFoodTopic, processedFoodExpected)
+        topicShouldContainTheSameElementsAs(animalStatusTopic, animalStatusExpected)
       }
     }
 
     Scenario("1 animal created, 6 food parcels of 1 calorie each arrive") {
-      runTest { (testDriver, animalTopic, foodTopic, outputTopic) =>
+      runTest { (testDriver, animalTopic, foodTopic, processedFoodTopic, animalStatusTopic) =>
         val animalKey = AnimalKey(animalId1)
         val animalValue = AnimalValue(animalId1, zooId1, maxCalories)
         animalTopic.pipeInput(animalKey, animalValue)
@@ -147,7 +166,7 @@ class ZooAnimalFeederPipelineTest extends AnyFeatureSpec with Matchers {
         val foodValue = FoodValue(foodId1, zooId1, calories1)
         (1 to 6).foreach(_ => foodTopic.pipeInput(foodKey, foodValue))
 
-        val expected = Seq(
+        val processedFoodExpected = Seq(
           new KeyValue(OutputKey(foodId1), OutputValue(foodId1, zooId1, calories1, animalId1, calories1 * 1)),
           new KeyValue(OutputKey(foodId1), OutputValue(foodId1, zooId1, calories1, animalId1, calories1 * 2)),
           new KeyValue(OutputKey(foodId1), OutputValue(foodId1, zooId1, calories1, animalId1, calories1 * 3)),
@@ -155,8 +174,17 @@ class ZooAnimalFeederPipelineTest extends AnyFeatureSpec with Matchers {
           new KeyValue(OutputKey(foodId1), OutputValue(foodId1, zooId1, calories1, animalId1, calories1 * 5)),
           new KeyValue(OutputKey(foodId1), OutputValue(foodId1, zooId1, calories1, -1, 0))
         )
+        val animalStatusExpected = Seq(
+          new KeyValue(AnimalStatusKey(zooId1, animalId1), AnimalCalorieFill(calories1 * 1)),
+          new KeyValue(AnimalStatusKey(zooId1, animalId1), AnimalCalorieFill(calories1 * 2)),
+          new KeyValue(AnimalStatusKey(zooId1, animalId1), AnimalCalorieFill(calories1 * 3)),
+          new KeyValue(AnimalStatusKey(zooId1, animalId1), AnimalCalorieFill(calories1 * 4)),
+          new KeyValue(AnimalStatusKey(zooId1, animalId1), AnimalCalorieFill(calories1 * 5)),
+          new KeyValue(AnimalStatusKey(zooId1, animalId1), AnimalCalorieFill(calories1 * 5))
+        )
 
-        outputTopicShouldContainTheSameElementsAs(outputTopic, expected)
+        topicShouldContainTheSameElementsAs(processedFoodTopic, processedFoodExpected)
+        topicShouldContainTheSameElementsAs(animalStatusTopic, animalStatusExpected)
       }
     }
   }

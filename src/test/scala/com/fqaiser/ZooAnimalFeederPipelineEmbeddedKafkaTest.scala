@@ -137,7 +137,8 @@ class ZooAnimalFeederPipelineEmbeddedKafkaTest
   ): Unit = {
     val animalsTopicName = "animalsTopic"
     val foodTopicName = "foodTopic"
-    val outputTopicName = "outputTopic"
+    val processedFoodTopicName = "processedFoodTopic"
+    val animalStatusTopicName = "animalStatusTopic"
 
     // TODO: switch to real schema registry
     val schemaRegistryClient: SchemaRegistryClient = new MockSchemaRegistryClient()
@@ -146,7 +147,8 @@ class ZooAnimalFeederPipelineEmbeddedKafkaTest
     val factory = ZooAnimalFeederPipeline(
       animalsTopicName,
       foodTopicName,
-      outputTopicName,
+      processedFoodTopicName,
+      animalStatusTopicName,
       schemaRegistryUrl,
       schemaRegistryClient
     )
@@ -171,10 +173,10 @@ class ZooAnimalFeederPipelineEmbeddedKafkaTest
       factory.foodValueSerde.serializer
     )
     val outputTopic = TestOutputTopic[OutputKey, OutputValue](
-      outputTopicName,
+      processedFoodTopicName,
       2,
-      factory.outputKeySerde.deserializer(),
-      factory.outputValueSerde.deserializer()
+      factory.processedFoodKeySerde.deserializer(),
+      factory.processedFoodValueSerde.deserializer()
     )
 
     val adminClient = TestAdminClient()

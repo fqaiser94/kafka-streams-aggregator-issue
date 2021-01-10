@@ -1,0 +1,9 @@
+@namespace("com.fqaiser")
+protocol AnimalStatusKeyProtocol {
+  record AnimalStatusKey {
+    /** The id of the zoo. */
+    int zooId;
+    /** The id of the animal. */
+    int animalId;
+  }
+}
