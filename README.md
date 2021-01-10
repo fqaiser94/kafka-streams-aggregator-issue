@@ -29,5 +29,6 @@ Once all the animals have been fed, we can throw the rest of the food away.
 5. https://stackoverflow.com/questions/39985048/kafka-streaming-concurrency
 6. https://www.michael-noll.com/blog/2020/01/16/what-every-software-engineer-should-know-about-apache-kafka-fundamentals/
 7. https://www.confluent.io/blog/kafka-streams-tables-part-3-event-processing-fundamentals/
-
+8. https://stackoverflow.com/questions/62302561/shared-kafka-statestore-best-practices#:~:text=There%20are%20no%20race%20conditions,executed%20in%20a%20single%20thread.&text=If%20two%20processor%20access%20the,in%20the%20same%20sub%2Dtopology.
+9. https://www.confluent.io/blog/enabling-exactly-once-kafka-streams/
   
