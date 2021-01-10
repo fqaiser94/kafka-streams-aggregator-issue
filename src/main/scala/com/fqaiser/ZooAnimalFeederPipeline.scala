@@ -102,8 +102,8 @@ case class ZooAnimalFeederPipeline(
       .to(processedFoodTopicName)(Produced.`with`(processedFoodKeySerde, processedFoodValueSerde))
 
     processed
-      .filter((k, v) => v.stateStoreValue.isDefined)
-      .mapValues(_.stateStoreValue.get)
+      .filter((k, v) => v.stateStoreValueIfUpdated.isDefined)
+      .mapValues(_.stateStoreValueIfUpdated.get)
       .map((k, v) => (AnimalStatusKey(v._1.zooId, v._1.animalId), v._2))
       .to(animalStatusTopicName)(Produced.`with`(animalStatusKeySerde, animalStatusValueSerde))
 

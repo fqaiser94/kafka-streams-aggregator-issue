@@ -1,13 +1,14 @@
 package com.fqaiser
 
+import com.fqaiser.AnimalFeederValueTransformer.Temp
 import org.apache.kafka.streams.kstream.ValueTransformer
 import org.apache.kafka.streams.processor.ProcessorContext
-import org.apache.kafka.streams.state.{KeyValueStore, TimestampedKeyValueStore, ValueAndTimestamp}
-import AnimalFeederValueTransformer.Temp
+import org.apache.kafka.streams.state.{TimestampedKeyValueStore, ValueAndTimestamp}
+
 import scala.collection.mutable.ArrayBuffer
 
 object AnimalFeederValueTransformer {
-  final case class Temp(stateStoreValue: Option[(ZooIdAnimalId, AnimalCalorieFill)], outputValue: OutputValue)
+  final case class Temp(stateStoreValueIfUpdated: Option[(ZooIdAnimalId, AnimalCalorieFill)], outputValue: OutputValue)
 }
 
 // TODO: unit test
@@ -52,7 +53,7 @@ case class AnimalFeederValueTransformer(zooAnimalStateStoreName: String, animalC
       )
     } else {
       Temp(
-        maybeCurrentAnimalCalorieFill.map(v => (animalKey, v)),
+        None,
         OutputValue(value.foodId, value.zooId, value.calories, -1, 0)
       )
     }

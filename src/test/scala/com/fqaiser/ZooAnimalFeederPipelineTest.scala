@@ -179,7 +179,6 @@ class ZooAnimalFeederPipelineTest extends AnyFeatureSpec with Matchers {
           new KeyValue(AnimalStatusKey(zooId1, animalId1), AnimalCalorieFill(calories1 * 2)),
           new KeyValue(AnimalStatusKey(zooId1, animalId1), AnimalCalorieFill(calories1 * 3)),
           new KeyValue(AnimalStatusKey(zooId1, animalId1), AnimalCalorieFill(calories1 * 4)),
-          new KeyValue(AnimalStatusKey(zooId1, animalId1), AnimalCalorieFill(calories1 * 5)),
           new KeyValue(AnimalStatusKey(zooId1, animalId1), AnimalCalorieFill(calories1 * 5))
         )
 
