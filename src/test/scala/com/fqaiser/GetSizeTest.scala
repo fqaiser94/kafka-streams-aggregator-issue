@@ -74,7 +74,7 @@ class GetSizeTest extends AnyFunSuite with Matchers with EmbeddedKafka {
       withConsumer[Key, ListOfValue, Unit] { consumer =>
         consumer.subscribe(Collections.singletonList(topicName))
         val records = consumer.poll(10000)
-        records.count() shouldEqual(0)
+        records.count() shouldEqual (0)
       }(kafkaConfig, keySerde.deserializer(), listOfValueSerde.deserializer())
     }
   }
