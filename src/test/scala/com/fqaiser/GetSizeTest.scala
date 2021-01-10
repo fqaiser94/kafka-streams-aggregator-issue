@@ -53,7 +53,7 @@ class GetSizeTest extends AnyFunSuite with Matchers with EmbeddedKafka {
     }
   }
 
-  test("try to break kafka") {
+  test("kafka breaks when record is too big") {
     // Based on the previous result of 150 bytes, 6666 values should break kafka
     withRunningKafka {
       val keySerde = SerdeUtils.ccSerde[Key](schemaRegistryUrl, null, isKey = true)
@@ -61,19 +61,43 @@ class GetSizeTest extends AnyFunSuite with Matchers with EmbeddedKafka {
 
       val values = (1 to 10000).map(_ => Value()).toList
 
+      an[org.apache.kafka.common.errors.RecordTooLargeException] should be thrownBy {
+        throw intercept[net.manub.embeddedkafka.KafkaUnavailableException] {
+          publishToKafka(topicName, Key(), ListOfValue(values))(
+            kafkaConfig,
+            keySerde.serializer(),
+            listOfValueSerde.serializer()
+          )
+        }.getCause.getCause
+      }
+
+      withConsumer[Key, ListOfValue, Unit] { consumer =>
+        consumer.subscribe(Collections.singletonList(topicName))
+        val records = consumer.poll(10000)
+        records.count() shouldEqual(0)
+      }(kafkaConfig, keySerde.deserializer(), listOfValueSerde.deserializer())
+    }
+  }
+
+  test("no problems when record is under 1 MB") {
+    withRunningKafka {
+      val keySerde = SerdeUtils.ccSerde[Key](schemaRegistryUrl, null, isKey = true)
+      val listOfValueSerde = SerdeUtils.ccSerde[ListOfValue](schemaRegistryUrl, null, isKey = false)
+
+      val values = (1 to 5000).map(_ => Value()).toList
+
       publishToKafka(topicName, Key(), ListOfValue(values))(
         kafkaConfig,
         keySerde.serializer(),
         listOfValueSerde.serializer()
       )
 
-      println("apparently published the message")
-
       withConsumer[Key, ListOfValue, Unit] { consumer =>
         consumer.subscribe(Collections.singletonList(topicName))
-        val records = consumer.poll(10000)
-        val size = records.asScala.toList.map(x => x.serializedKeySize() + x.serializedValueSize()).head
+        val records = consumer.poll(10000).asScala.toList
+        val size = records.map(x => x.serializedKeySize() + x.serializedValueSize()).head
         println(s"size: $size")
+        records.map(x => (x.key(), x.value())) should contain theSameElementsAs Seq((Key(), ListOfValue(values)))
       }(kafkaConfig, keySerde.deserializer(), listOfValueSerde.deserializer())
     }
   }

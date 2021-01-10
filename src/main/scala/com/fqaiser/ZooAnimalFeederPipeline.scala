@@ -48,7 +48,6 @@ case class ZooAnimalFeederPipeline(
 
     val food: KStream[ZooId, FoodValue] = streamsBuilder
       .stream(foodTopicName)(Consumed.`with`(foodKeySerde, foodValueSerde))
-      .peek((k, v) => println(s"************ receivedFood: ${(k, v)}"))
       .selectKey((k, v) => ZooId(v.zooId))
       .repartition(
         Repartitioned.`with`(partitioner = ZooIdPartitioner[ZooId, FoodValue](_.zooId))(
@@ -60,7 +59,6 @@ case class ZooAnimalFeederPipeline(
     val zooAnimalsTable: KTable[ZooIdAnimalId, AnimalValue] =
       streamsBuilder
         .stream(animalsTopicName)(Consumed.`with`(animalKeySerde, animalValueSerde))
-        .peek((k, v) => println(s"************ animal: ${(k, v)}"))
         .selectKey((k, v) => ZooIdAnimalId(v.zooId, v.animalId))
         // Repartition so that all animals for a given zoo end up on a particular partition
         .repartition(
@@ -87,16 +85,13 @@ case class ZooAnimalFeederPipeline(
 
     streamsBuilder.addStateStore(animalCaloriesCountStoreBuilder)
 
-    // TODO: need to pass in animalCaloriesCount state store name?
-    val zooAnimalStateStoreName: String = zooAnimalsTable.queryableStoreName
     val output: KStream[OutputKey, OutputValue] = food
       .transformValues(
-        () => AnimalFeederValueTransformer(zooAnimalStateStoreName, animalCaloriesCountStoreName),
-        zooAnimalStateStoreName,
+        () => AnimalFeederValueTransformer(zooAnimalsTable.queryableStoreName, animalCaloriesCountStoreName),
+        zooAnimalsTable.queryableStoreName,
         animalCaloriesCountStoreName
       )
       .selectKey((k, v) => OutputKey(v.foodId))
-      .peek((k, v) => println(s"************ some animal consumed some food: ${(k, v)}"))
 
     output.to(outputTopicName)(Produced.`with`(outputKeySerde, outputValueSerde))
 
