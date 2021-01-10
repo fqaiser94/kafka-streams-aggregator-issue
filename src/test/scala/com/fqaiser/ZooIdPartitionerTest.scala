@@ -1,8 +1,6 @@
 package com.fqaiser
 
-import org.scalatest.Assertion
 import org.scalatest.featurespec.AnyFeatureSpec
-import org.scalatest.matchers.must.Matchers.be
 import org.scalatest.matchers.should.Matchers
 
 import scala.collection.mutable.ArrayBuffer
@@ -57,15 +55,18 @@ class ZooIdPartitionerTest extends AnyFeatureSpec with Matchers {
   }
 
   Feature("partition return value should be evenly distributed over a range of zooIds") {
-    Scenario("???") {
+    def runTest(numPartitions: Int) = {
       val rangeOfZooIds = 1 to 1000000
-      val numPartitions = 8
       var partitionValues = ArrayBuffer.empty[Int]
       doForRangeOfZooIds(
         rangeOfZooIds = rangeOfZooIds,
         numPartitions = numPartitions,
         whatToDo = x => partitionValues = partitionValues.append(x.toInt)
       )
+
+      val expectedPrcntOfValuesInEachPartition = 100 / numPartitions
+      println(s"running for numPartitions: $numPartitions")
+      println(s"expectedPrcntOfValuesInEachPartition: $expectedPrcntOfValuesInEachPartition")
 
       partitionValues
         .groupBy(identity)
@@ -74,10 +75,19 @@ class ZooIdPartitionerTest extends AnyFeatureSpec with Matchers {
         .mapValues(_.size)
         // calculate percentage of total
         .mapValues(x => ((x.toDouble / rangeOfZooIds.size.toDouble) * 100.0).toInt)
+        .toList
+        .sortBy(_._1)
         .map { case (k, v) => println(s"$k:$v"); (k, v) }
         .map { case (k, v) => v }
-        .foreach(x => x shouldEqual(100 / numPartitions))
+        .foreach(x => x shouldEqual expectedPrcntOfValuesInEachPartition)
     }
+
+    Seq(1, 8, 16, 32).foreach { numPartitions =>
+      Scenario(s"numPartitions = $numPartitions") {
+        runTest(numPartitions)
+      }
+    }
+
   }
 
 }
