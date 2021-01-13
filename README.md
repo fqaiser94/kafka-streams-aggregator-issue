@@ -31,4 +31,7 @@ Once all the animals have been fed, we can throw the rest of the food away.
 7. https://www.confluent.io/blog/kafka-streams-tables-part-3-event-processing-fundamentals/
 8. https://stackoverflow.com/questions/62302561/shared-kafka-statestore-best-practices#:~:text=There%20are%20no%20race%20conditions,executed%20in%20a%20single%20thread.&text=If%20two%20processor%20access%20the,in%20the%20same%20sub%2Dtopology.
 9. https://www.confluent.io/blog/enabling-exactly-once-kafka-streams/
+10. https://objectpartners.com/2019/07/31/slimming-down-your-kafka-streams-data/
+11. https://www.youtube.com/watch?v=_KAFdwJ0zBA&ab_channel=Devoxx
+
   

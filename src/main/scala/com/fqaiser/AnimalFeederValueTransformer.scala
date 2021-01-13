@@ -63,6 +63,7 @@ case class AnimalFeederValueTransformer(zooAnimalStateStoreName: String, animalC
 
   private def getAnimals(zooId: Int): ArrayBuffer[AnimalValue] = {
     var zooIdAnimals = ArrayBuffer.empty[AnimalValue]
+    // TODO: can we use the range method here instead?
     val iterator = zooAnimalStateStore.all()
     while (iterator.hasNext) {
       val timestampedKeyValue = iterator.next()
