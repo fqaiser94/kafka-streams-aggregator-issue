@@ -63,7 +63,15 @@ case class AnimalFeederValueTransformer(zooAnimalStateStoreName: String, animalC
 
   private def getAnimals(zooId: Int): ArrayBuffer[AnimalValue] = {
     var zooIdAnimals = ArrayBuffer.empty[AnimalValue]
-    // TODO: can we use the range method here instead?
+
+    /**
+      * TODO: make more efficient
+      * Three ways around this:
+      *  1. Use the range method which requires a sort order preserving serialization method
+      *  2. Iterate over all values (dunno if fast) possibly using in-memory state store
+      *  3. Store pre-aggregated values in state store (potentially kafka 1 MB max message size limit issues) and
+      *     horrible coding experience.
+      */
     val iterator = zooAnimalStateStore.all()
     while (iterator.hasNext) {
       val timestampedKeyValue = iterator.next()
