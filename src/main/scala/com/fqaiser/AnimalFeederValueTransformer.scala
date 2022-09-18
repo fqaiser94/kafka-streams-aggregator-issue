@@ -72,13 +72,14 @@ case class AnimalFeederValueTransformer(zooAnimalStateStoreName: String, animalC
       *  3. Store pre-aggregated values in state store (potentially kafka 1 MB max message size limit issues) and
       *     horrible coding experience.
       */
-    val iterator = zooAnimalStateStore.all()
+    zooAnimalStateStore.all()
+    val iterator = zooAnimalStateStore.range(ZooIdAnimalId(zooId, 0), ZooIdAnimalId(zooId, Int.MaxValue))
     while (iterator.hasNext) {
       val timestampedKeyValue = iterator.next()
-      if (timestampedKeyValue.key.zooId == zooId)
-        zooIdAnimals += timestampedKeyValue.value.value()
+      zooIdAnimals += timestampedKeyValue.value.value()
     }
     iterator.close()
+    println(s"************************* $zooIdAnimals")
     zooIdAnimals
   }
 }

@@ -1,0 +1,7 @@
+@namespace("com.fqaiser")
+protocol ZooIdAnimalIdsKeyProtocol {
+  record ZooIdAnimalId {
+    int @order("ascending") zooId;
+    int @order("ascending") animalId;
+  }
+}

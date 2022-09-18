@@ -188,6 +188,12 @@ class ZooAnimalFeederPipelineTest extends AnyFeatureSpec with Matchers {
     }
   }
 
+  Feature("Test state store range method rigorously?") {
+    Scenario("Lots of animals at a zoo") {
+
+    }
+  }
+
   Feature("Edge cases") {
     Scenario("what should happen when a Food parcel comes in for an animal that is not associated with the zoo?") {
       // TODO: this isn't possible right now b/c our food parcels don't contain animalId.
